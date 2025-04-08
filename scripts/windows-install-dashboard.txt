@@ -1,0 +1,342 @@
+# Windows PowerShell script for installing Augmentorium Dashboard
+# Run as administrator for best results
+
+# Configuration
+$RootDir = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$DashboardDir = Join-Path $RootDir "dashboard"
+$ServerDir = Join-Path $RootDir "server"
+$TempDir = "C:\Temp\augmentorium-dashboard"
+$LogsDir = Join-Path $env:USERPROFILE ".augmentorium\logs"
+
+# Print header
+Write-Host "============================================" -ForegroundColor Green
+Write-Host "  Augmentorium Dashboard Installer (Windows)  " -ForegroundColor Green
+Write-Host "============================================" -ForegroundColor Green
+Write-Host ""
+
+# Function to check if a command exists
+function Test-Command {
+    param (
+        [string]$Command
+    )
+    
+    try {
+        Get-Command $Command -ErrorAction Stop | Out-Null
+        return $true
+    }
+    catch {
+        return $false
+    }
+}
+
+# Check for required commands
+Write-Host "Checking dependencies..." -ForegroundColor Yellow
+$MissingDeps = $false
+
+if (-not (Test-Command "node")) {
+    Write-Host "Node.js is not installed. Please install Node.js 14 or newer." -ForegroundColor Red
+    Write-Host "You can download it from: https://nodejs.org/" -ForegroundColor Yellow
+    $MissingDeps = $true
+}
+else {
+    $NodeVersion = (node --version)
+    Write-Host "Found Node.js $NodeVersion" -ForegroundColor Green
+}
+
+if (-not (Test-Command "npm")) {
+    Write-Host "npm is not installed. Please install npm." -ForegroundColor Red
+    Write-Host "It should be installed with Node.js" -ForegroundColor Yellow
+    $MissingDeps = $true
+}
+
+if (-not (Test-Command "git")) {
+    Write-Host "git is not installed. Please install git." -ForegroundColor Red
+    Write-Host "You can download it from: https://git-scm.com/download/win" -ForegroundColor Yellow
+    $MissingDeps = $true
+}
+
+if ($MissingDeps) {
+    Write-Host "Please install the missing dependencies and run the installer again." -ForegroundColor Red
+    exit 1
+}
+
+# Create directories
+Write-Host "Creating directories..." -ForegroundColor Yellow
+New-Item -ItemType Directory -Path $DashboardDir -Force | Out-Null
+New-Item -ItemType Directory -Path (Join-Path $ServerDir "dashboard\build") -Force | Out-Null
+New-Item -ItemType Directory -Path $LogsDir -Force | Out-Null
+
+# Clone or update dashboard repository
+if (Test-Path $TempDir) {
+    Write-Host "Updating dashboard repository..." -ForegroundColor Yellow
+    Set-Location $TempDir
+    git pull
+}
+else {
+    Write-Host "Cloning dashboard repository..." -ForegroundColor Yellow
+    New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
+    git clone https://github.com/yourusername/augmentorium-dashboard.git $TempDir
+    Set-Location $TempDir
+}
+
+# Install dependencies
+Write-Host "Installing dependencies..." -ForegroundColor Yellow
+npm install
+
+# Build dashboard
+Write-Host "Building dashboard..." -ForegroundColor Yellow
+npm run build
+
+# Copy build files
+Write-Host "Copying dashboard files..." -ForegroundColor Yellow
+Copy-Item -Path "build\*" -Destination (Join-Path $ServerDir "dashboard\build") -Recurse -Force
+
+# Copy server files
+Write-Host "Copying server files..." -ForegroundColor Yellow
+Copy-Item -Path "src\server\dashboard.py" -Destination $ServerDir -Force
+
+# Add dashboard to server/__init__.py
+$InitFile = Join-Path $ServerDir "__init__.py"
+$InitContent = Get-Content $InitFile -Raw
+
+if (-not ($InitContent -match "from .dashboard import")) {
+    Write-Host "Adding dashboard to server/__init__.py..." -ForegroundColor Yellow
+    
+    # Add import statement after the last import
+    $InitContent = $InitContent -replace "(?m)^(from .+\n)(?!from)", "`$1from .dashboard import start_dashboard`n"
+    
+    # Add export statement
+    if ($InitContent -match "__all__ =") {
+        # Add to existing __all__ list
+        $InitContent = $InitContent -replace "__all__ = \[", "__all__ = [""start_dashboard"", "
+    }
+    else {
+        # Add new __all__ list
+        $InitContent += "`n__all__ = [""start_dashboard"", ""start_server""]`n"
+    }
+    
+    # Save changes
+    $InitContent | Set-Content $InitFile -Force
+}
+
+# Check for Flask and Flask-CORS
+Write-Host "Checking for Flask and Flask-CORS..." -ForegroundColor Yellow
+$FlaskCorsInstalled = $false
+try {
+    python -c "import flask_cors" 2>$null
+    $FlaskCorsInstalled = $true
+}
+catch {}
+
+if (-not $FlaskCorsInstalled) {
+    Write-Host "Installing Flask-CORS..." -ForegroundColor Yellow
+    pip install flask-cors
+}
+
+# Add dashboard to requirements.txt
+$RequirementsFile = Join-Path $RootDir "requirements.txt"
+$RequirementsContent = Get-Content $RequirementsFile -Raw
+
+if (-not ($RequirementsContent -match "flask-cors")) {
+    Write-Host "Adding Flask-CORS to requirements.txt..." -ForegroundColor Yellow
+    Add-Content -Path $RequirementsFile -Value "flask-cors>=2.0.0"
+}
+
+# Create a simple startup script for the dashboard
+$DashboardScript = Join-Path $RootDir "scripts\start_dashboard.py"
+Write-Host "Creating dashboard startup script..." -ForegroundColor Yellow
+
+$ScriptContent = @"
+#!/usr/bin/env python3
+"""
+Standalone script to start the Augmentorium dashboard
+"""
+
+import os
+import sys
+import logging
+import argparse
+
+# Add the parent directory to sys.path
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, parent_dir)
+
+from augmentorium.config.manager import ConfigManager
+from augmentorium.server.mcp import MCPServer
+from augmentorium.server.dashboard import DashboardAPI
+from augmentorium.utils.logging import setup_logging
+
+def main():
+    """Main entry point for dashboard"""
+    parser = argparse.ArgumentParser(description="Augmentorium Dashboard")
+    parser.add_argument("--host", default="localhost", help="Host to bind to")
+    parser.add_argument("--port", type=int, default=8081, help="Port to bind to")
+    parser.add_argument("--config", help="Path to config file")
+    parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], 
+                      default="INFO", help="Set the logging level")
+    args = parser.parse_args()
+    
+    # Setup logging
+    log_level = getattr(logging, args.log_level)
+    setup_logging(log_level)
+    
+    # Load configuration
+    config = ConfigManager(args.config)
+    
+    # Create MCP server (without starting it)
+    mcp_server = MCPServer(config)
+    
+    # Start dashboard
+    dashboard_api = DashboardAPI(
+        config_manager=config,
+        mcp_server=mcp_server,
+        host=args.host,
+        port=args.port
+    )
+    
+    # Run dashboard
+    dashboard_api.run()
+
+if __name__ == "__main__":
+    main()
+"@
+
+Set-Content -Path $DashboardScript -Value $ScriptContent -Force
+
+# Add startup script to setup.py
+$SetupFile = Join-Path $RootDir "setup.py"
+$SetupContent = Get-Content $SetupFile -Raw
+
+if (-not ($SetupContent -match "augmentorium-dashboard")) {
+    Write-Host "Adding dashboard script to setup.py..." -ForegroundColor Yellow
+    
+    # Add to entry_points console_scripts
+    $SetupContent = $SetupContent -replace '(console_scripts.\s*=\s*\[)', "`$1`n        ""augmentorium-dashboard=augmentorium.scripts.start_dashboard:main"","
+    
+    # Save changes
+    $SetupContent | Set-Content $SetupFile -Force
+}
+
+# Create a Windows service for the dashboard
+$ServiceBatchFile = Join-Path $RootDir "scripts\augmentorium-dashboard.bat"
+Write-Host "Creating service batch file..." -ForegroundColor Yellow
+
+$BatchContent = @"
+@echo off
+cd $RootDir
+python $DashboardScript --host localhost --port 8081
+"@
+
+Set-Content -Path $ServiceBatchFile -Value $BatchContent -Force
+
+# Create Windows service using NSSM if available
+$NssmPath = Join-Path $env:USERPROFILE ".augmentorium\bin\nssm.exe"
+$IsAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
+
+if ($IsAdmin -and (Test-Path $NssmPath)) {
+    Write-Host "Creating Windows Service..." -ForegroundColor Yellow
+    
+    # Remove existing service if it exists
+    & $NssmPath stop AugmentoriumDashboard 2>$null
+    & $NssmPath remove AugmentoriumDashboard confirm 2>$null
+    
+    # Create dashboard service
+    & $NssmPath install AugmentoriumDashboard $ServiceBatchFile
+    & $NssmPath set AugmentoriumDashboard DisplayName "Augmentorium Dashboard"
+    & $NssmPath set AugmentoriumDashboard Description "Augmentorium management dashboard"
+    & $NssmPath set AugmentoriumDashboard AppStdout "$LogsDir\dashboard-output.log"
+    & $NssmPath set AugmentoriumDashboard AppStderr "$LogsDir\dashboard-error.log"
+    & $NssmPath set AugmentoriumDashboard AppRotateFiles 1
+    & $NssmPath set AugmentoriumDashboard AppRotateOnline 1
+    & $NssmPath set AugmentoriumDashboard AppRotateSeconds 86400
+    & $NssmPath set AugmentoriumDashboard Start SERVICE_AUTO_START
+    
+    # Start service
+    Start-Service AugmentoriumDashboard
+    
+    Write-Host "Windows service created and started!" -ForegroundColor Green
+}
+else {
+    Write-Host "Creating startup shortcut..." -ForegroundColor Yellow
+    
+    # Create Windows shortcut
+    $WshShell = New-Object -ComObject WScript.Shell
+    $StartupDir = [System.IO.Path]::Combine($env:APPDATA, "Microsoft\Windows\Start Menu\Programs\Startup")
+    $Shortcut = $WshShell.CreateShortcut("$StartupDir\Augmentorium Dashboard.lnk")
+    $Shortcut.TargetPath = $ServiceBatchFile
+    $Shortcut.WorkingDirectory = $RootDir
+    $Shortcut.Description = "Start Augmentorium Dashboard"
+    $Shortcut.Save()
+    
+    Write-Host "Startup shortcut created!" -ForegroundColor Green
+}
+
+# Create PowerShell functions for managing the dashboard
+$ProfilePath = $PROFILE
+$ProfileDir = Split-Path -Parent $ProfilePath
+
+if (-not (Test-Path $ProfileDir)) {
+    New-Item -ItemType Directory -Path $ProfileDir -Force | Out-Null
+}
+
+if (-not (Test-Path $ProfilePath)) {
+    New-Item -ItemType File -Path $ProfilePath -Force | Out-Null
+}
+
+Write-Host "Adding dashboard functions to PowerShell profile..." -ForegroundColor Yellow
+
+$ProfileContent = @"
+
+# Augmentorium Dashboard functions
+function Start-AugmentoriumDashboard {
+    if (Get-Service AugmentoriumDashboard -ErrorAction SilentlyContinue) {
+        Start-Service AugmentoriumDashboard
+        Write-Host "Augmentorium Dashboard service started." -ForegroundColor Green
+    } else {
+        Start-Process -FilePath "$ServiceBatchFile" -WindowStyle Minimized
+        Write-Host "Augmentorium Dashboard process started." -ForegroundColor Green
+    }
+}
+
+function Stop-AugmentoriumDashboard {
+    if (Get-Service AugmentoriumDashboard -ErrorAction SilentlyContinue) {
+        Stop-Service AugmentoriumDashboard
+        Write-Host "Augmentorium Dashboard service stopped." -ForegroundColor Green
+    } else {
+        Get-Process -Name "python" -ErrorAction SilentlyContinue | 
+            Where-Object { `$_.CommandLine -like "*start_dashboard.py*" } | 
+            Stop-Process -Force
+        Write-Host "Augmentorium Dashboard process stopped." -ForegroundColor Green
+    }
+}
+
+function Get-AugmentoriumDashboardLogs {
+    if (Test-Path "$LogsDir\dashboard-output.log") {
+        Get-Content -Path "$LogsDir\dashboard-output.log" -Tail 20
+    } else {
+        Write-Host "Dashboard logs not found." -ForegroundColor Yellow
+    }
+}
+
+Set-Alias -Name augmentorium-dashboard-start -Value Start-AugmentoriumDashboard
+Set-Alias -Name augmentorium-dashboard-stop -Value Stop-AugmentoriumDashboard
+Set-Alias -Name augmentorium-dashboard-logs -Value Get-AugmentoriumDashboardLogs
+"@
+
+Add-Content -Path $ProfilePath -Value $ProfileContent -Force
+
+# Installation complete
+Write-Host ""
+Write-Host "============================================" -ForegroundColor Green
+Write-Host " Augmentorium Dashboard installation complete " -ForegroundColor Green
+Write-Host "============================================" -ForegroundColor Green
+Write-Host ""
+Write-Host "You can start the dashboard with the following command:"
+Write-Host "  augmentorium-dashboard" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "Or with PowerShell:"
+Write-Host "  augmentorium-dashboard-start" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "The dashboard will be available at http://localhost:8081"
+Write-Host ""
+Write-Host "Enjoy using Augmentorium Dashboard!" -ForegroundColor Green
