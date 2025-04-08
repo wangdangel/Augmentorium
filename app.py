@@ -28,7 +28,7 @@ def main():
     server_parser = subparsers.add_parser("server", help="Start the MCP server")
     server_parser.add_argument("--config", help="Path to config file")
     server_parser.add_argument("--project", help="Path to the initial active project")
-    server_parser.add_argument("--port", type=int, default=8080, help="Port for the API server")
+    server_parser.add_argument("--port", type=int, default=6655, help="Port for the API server")
     server_parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default="INFO",
                           help="Set the logging level")
     

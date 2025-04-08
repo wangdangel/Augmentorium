@@ -21,7 +21,7 @@ class APIServer:
         config_manager: ConfigManager,
         mcp_server: MCPServer,
         host: str = "localhost",
-        port: int = 8080
+        port: int = 6655
     ):
         """
         Initialize API server

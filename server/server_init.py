@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 def start_server(
     config: ConfigManager,
-    port: int = 8080,
+    port: int = 6655,
     active_project: Optional[str] = None
 ) -> Tuple[MCPService, APIServer, threading.Thread]:
     """
@@ -75,7 +75,7 @@ def main():
     parser = argparse.ArgumentParser(description="Augmentorium Server")
     parser.add_argument("--config", help="Path to config file")
     parser.add_argument("--project", help="Path to the active project")
-    parser.add_argument("--port", type=int, default=8080, help="Port for the API server")
+    parser.add_argument("--port", type=int, default=6655, help="Port for the API server")
     parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default="INFO",
                         help="Set the logging level")
     args = parser.parse_args()

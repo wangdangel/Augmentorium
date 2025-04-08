@@ -29,7 +29,7 @@ DEFAULT_GLOBAL_CONFIG = {
     },
     "server": {
         "host": "localhost",
-        "port": 8080,
+        "port": 6655,
         "cache_size": 100,
     },
     "ollama": {
