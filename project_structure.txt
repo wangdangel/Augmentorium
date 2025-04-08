@@ -1,0 +1,35 @@
+augmentorium/
+├── __init__.py
+├── config/
+│   ├── __init__.py
+│   ├── defaults.py
+│   └── manager.py
+├── indexer/
+│   ├── __init__.py
+│   ├── watcher.py
+│   ├── parser.py
+│   ├── chunker.py
+│   └── embedder.py
+├── server/
+│   ├── __init__.py
+│   ├── mcp.py
+│   ├── api.py
+│   └── query.py
+├── utils/
+│   ├── __init__.py
+│   ├── logging.py
+│   ├── path_utils.py
+│   └── db_utils.py
+├── scripts/
+│   ├── install_linux.sh
+│   ├── install_macos.sh
+│   ├── install_windows.ps1
+│   └── setup_project.py
+├── tests/
+│   ├── __init__.py
+│   ├── test_indexer.py
+│   └── test_server.py
+├── app.py
+├── setup.py
+├── requirements.txt
+└── README.md
