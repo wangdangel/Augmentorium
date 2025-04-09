@@ -84,16 +84,32 @@ class TreeSitterManager:
             grammar_dir: Directory containing Tree-sitter grammars
             auto_install: Whether to automatically install missing grammars
         """
-        # Set default grammar directory
+        # Set default grammar directory to bundled grammars/
         if grammar_dir is None:
-            home_dir = str(Path.home())
-            grammar_dir = os.path.join(home_dir, ".augmentorium", "tree-sitter-grammars")
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            grammar_dir = os.path.join(project_root, "grammars")
         
         self.grammar_dir = grammar_dir
         self.auto_install = auto_install
         
         # Initialize grammar manager
         self.grammar_manager = GrammarManager(grammar_dir)
+        
+        # If no grammars installed, attempt to install all
+        if not self.grammar_manager.installed_grammars:
+            logger.info("No Tree-sitter grammars found. Attempting to install all supported grammars...")
+            deps = self.grammar_manager.check_system_dependencies()
+            missing = [k for k, v in deps.items() if not v]
+            if missing:
+                logger.warning(f"Cannot install grammars automatically. Missing dependencies: {', '.join(missing)}")
+                self.grammar_manager.print_installation_instructions()
+            else:
+                successful, failed = self.grammar_manager.install_all_grammars()
+                logger.info(f"Installed grammars: {successful}")
+                if failed:
+                    logger.warning(f"Failed to install grammars: {failed}")
+                # Refresh installed grammars list
+                self.grammar_manager.installed_grammars = self.grammar_manager._get_installed_grammars()
         
         # Initialize languages and parsers
         self.languages: Dict[str, Language] = {}
