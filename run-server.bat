@@ -1,0 +1,24 @@
+@echo off
+REM Run script for Augmentorium Server on Windows
+
+REM Activate the virtual environment
+call .\.venv\Scripts\activate.bat
+
+REM Set Ollama URL if not passed as argument
+SET OLLAMA_URL=http://your-server-ip:11434
+SET FOUND_OLLAMA_ARG=0
+
+FOR %%A IN (%*) DO (
+    IF "%%A"=="--ollama-url" SET FOUND_OLLAMA_ARG=1
+)
+
+IF %FOUND_OLLAMA_ARG%==0 (
+    REM Run the server script with default Ollama URL
+    python scripts\run_server.py --port 6655 --ollama-url %OLLAMA_URL% %*
+) ELSE (
+    REM Run with the provided arguments
+    python scripts\run_server.py --port 6655 %*
+)
+
+REM If you get to this point, the script has been interrupted or has ended
+echo Server has stopped.

@@ -71,13 +71,65 @@ augmentorium/
 │   ├── logging.py             # Logging utilities
 │   └── path_utils.py          # Path handling utilities
 ├── scripts/                   # Installation scripts
+│   ├── dev/                   # Development scripts
+│   │   ├── run_indexer.py     # Run indexer for development
+│   │   └── run_server.py      # Run server for development
 │   ├── install_linux.sh       # Linux installer
 │   ├── install_macos.sh       # macOS installer
 │   ├── install_windows.ps1    # Windows installer
-│   ├── manage_grammars.py     # Grammar management CLI
 │   └── setup_project.py       # Project setup utility
-└── tests/                     # Test suite (to be implemented)
+└── tests/                     # Test suite
 ```
+
+## Development Environment
+
+### Local Setup
+
+For local development, the following steps are recommended:
+
+1. **Create a virtual environment**:
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate  # Linux/macOS
+   .venv\Scripts\activate.bat  # Windows
+   ```
+
+2. **Install dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   pip install -e .  # Install in development mode
+   ```
+
+3. **Run the development setup script**:
+   ```bash
+   python setup_dev.py
+   ```
+
+4. **Start the indexer and server**:
+   ```bash
+   # Start the indexer
+   python scripts/dev/run_indexer.py
+   
+   # Start the server (in another terminal)
+   python scripts/dev/run_server.py
+   ```
+
+### Development Workflow
+
+1. **Set up a project**:
+   ```bash
+   python -m augmentorium.scripts.setup_project /path/to/your/codebase
+   ```
+
+2. **Test with the example client**:
+   ```bash
+   python example_client.py --query "How does the file watcher work?"
+   ```
+
+3. **Run unit tests**:
+   ```bash
+   pytest tests/
+   ```
 
 ## Key Features
 
@@ -102,42 +154,26 @@ augmentorium/
 - **Cross-Platform**: Works on Windows, Linux, and macOS
 - **Per-Project Databases**: Each codebase has its own vector database
 
-## Use Cases
+## Integration with LLMs
 
-1. **Code Comprehension**: Help developers understand unfamiliar codebases
-2. **Refactoring Assistance**: Identify dependencies and impact of changes
-3. **Documentation Generation**: Create documentation from code comments and structure
-4. **Bug Detection**: Find related code patterns across the codebase
-5. **Knowledge Preservation**: Maintain institutional knowledge about the codebase
+Augmentorium can be integrated with LLMs in two ways:
 
-## Deployment Strategy
+1. **Standard I/O Interface**: For direct integration with LLM tools
+   ```
+   LLM Tool → stdin/stdout → MCP Server → Response
+   ```
 
-### Development Environment
-- Run as Python modules with hot reloading
-- Local embedded Chroma DB
-- Console logging for debugging
+2. **REST API**: For web or application integrations
+   ```
+   Application → HTTP → API Server → Response
+   ```
 
-### Production Environment
-- Run as system services (systemd/launchd/Windows Service)
-- File-based logging
-- Automatic startup on system boot
+The MCP server's context builder creates code-optimized context that preserves the structure and relationships of the code, making it easier for LLMs to understand and work with the codebase.
 
-## Future Roadmap
+## Future Work
 
-### Short-term
-1. Complete testing suite and documentation
-2. Add additional language support
-3. Optimize embedding and retrieval performance
-4. Create example configurations and templates
-
-### Medium-term
-1. Build visualization tools for code relationships
-2. Add semantic search improvements
-3. Implement version tracking and diff analysis
-4. Develop dedicated LLM integration plugins
-
-### Long-term
-1. Add support for distributed codebases
-2. Implement collaborative features
-3. Build a web interface for management
-4. Create a hosted service option
+1. **Dashboard**: A web-based dashboard for monitoring and management
+2. **Improved Relationship Detection**: More sophisticated analysis of code relationships
+3. **Enhanced Query Expansion**: Better understanding of code terminology
+4. **Integration Plugins**: Dedicated plugins for popular LLM tools
+5. **Multi-Codebase Support**: Search across multiple projects

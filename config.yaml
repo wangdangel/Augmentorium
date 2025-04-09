@@ -1,0 +1,21 @@
+# Augmentorium global configuration
+
+general:
+  log_dir: "~/.augmentorium/logs"
+  log_level: "INFO"
+
+indexer:
+  polling_interval: 1.0  # seconds
+  max_workers: 4
+  hash_algorithm: "md5"
+
+server:
+  host: "localhost"
+  port: 6655  # Default port for the API server
+  cache_size: 100
+
+ollama:
+  # Change this to the address of your Ollama server
+  base_url: "http://10.0.0.246:11434"  # Replace with your server's IP
+  embedding_model: "codellama:34b"
+  embedding_batch_size: 10
