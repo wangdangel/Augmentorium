@@ -9,7 +9,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
-from augmentorium.config.defaults import (
+from config.defaults import (
     DEFAULT_GLOBAL_CONFIG,
     DEFAULT_PROJECT_CONFIG,
     GLOBAL_CONFIG_DIR,
@@ -28,19 +28,37 @@ class ConfigManager:
         Args:
             config_path: Optional path to a configuration file
         """
-        # Initialize global configuration
+        # Initialize with defaults
         self.global_config = deepcopy(DEFAULT_GLOBAL_CONFIG)
         self.global_config_path = os.path.join(GLOBAL_CONFIG_DIR, "global_config.yaml")
         self.projects_path = os.path.join(GLOBAL_CONFIG_DIR, "projects.yaml")
-        
-        # Load global configuration if it exists
+
+        # Always ensure global config dir exists
         self._ensure_global_config_dir()
-        self._load_global_config()
-        
-        # If a specific config path is provided, override with it
+
+        # Determine effective config file
+        effective_config_path = None
+
         if config_path and os.path.exists(config_path):
-            self._load_specific_config(config_path)
-        
+            effective_config_path = config_path
+        else:
+            # Check for config.yaml relative to current working directory
+            if os.path.exists("config.yaml"):
+                effective_config_path = "config.yaml"
+
+        if effective_config_path:
+            try:
+                with open(effective_config_path, 'r') as f:
+                    loaded_config = yaml.safe_load(f)
+                    if loaded_config:
+                        self.global_config = loaded_config  # REPLACE global config entirely
+                        logger.info(f"Loaded configuration from {effective_config_path}")
+            except Exception as e:
+                logger.warning(f"Failed to load config from {effective_config_path}: {e}")
+        else:
+            # Fallback: load global config file if it exists
+            self._load_global_config()
+
         # Initialize project registry
         self.projects = self._load_projects()
     

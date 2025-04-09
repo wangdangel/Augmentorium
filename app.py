@@ -7,10 +7,10 @@ import argparse
 import os
 import sys
 import logging
-from augmentorium.config.manager import ConfigManager
-from augmentorium.indexer import start_indexer
-from augmentorium.server import start_server
-from augmentorium.utils.logging import setup_logging
+from config.manager import ConfigManager
+from indexer.indexer_init import start_indexer
+from server.mcp import start_server
+from utils.logging import setup_logging
 
 def main():
     """Main entry point for the Augmentorium application"""
@@ -54,7 +54,7 @@ def main():
     elif args.command == "server":
         start_server(config, args.port, args.project)
     elif args.command == "setup":
-        from augmentorium.scripts.setup_project import setup_project
+        from scripts.setup_project import setup_project
         template_path = args.config if hasattr(args, 'config') and args.config else None
         setup_project(args.project_path, template_path)
     else:

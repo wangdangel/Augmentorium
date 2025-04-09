@@ -9,9 +9,9 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any, Set, Tuple, Union, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from tree_sitter import Language, Parser, Node, Tree
-from augmentorium.utils.grammar_manager import GrammarManager
+from utils.grammar_manager import GrammarManager
 
-from augmentorium.utils.path_utils import get_file_extension
+from utils.path_utils import get_file_extension
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +62,19 @@ EXTENSION_TO_LANGUAGE = {
 
 class TreeSitterManager:
     """Manager for Tree-sitter languages and parsers"""
+    
+    def detect_language(self, file_path: str) -> Optional[str]:
+        """
+        Detect programming language based on file extension.
+        
+        Args:
+            file_path: Path to the file
+            
+        Returns:
+            Language string compatible with Tree-sitter, or None if unknown
+        """
+        ext = os.path.splitext(file_path)[1].lower()
+        return EXTENSION_TO_LANGUAGE.get(ext)
     
     def __init__(self, grammar_dir: Optional[str] = None, auto_install: bool = False):
         """

@@ -9,8 +9,8 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Set, Tuple, Iterator, Union
 
-from augmentorium.utils.path_utils import get_file_extension
-from augmentorium.indexer.parser import CodeStructure, CodeParser
+from utils.path_utils import get_file_extension
+from indexer.parser import CodeStructure, CodeParser
 
 logger = logging.getLogger(__name__)
 
@@ -264,9 +264,11 @@ class SlidingWindowChunkingStrategy(ChunkingStrategy):
             List[CodeChunk]: List of code chunks
         """
         try:
-            # Read file content
+            logger = logging.getLogger(__name__)
+            logger.debug(f"[SlidingWindowChunking] Opening file: {file_path}")
             with open(file_path, "r", encoding="utf-8", errors="replace") as f:
                 content = f.read()
+            logger.debug(f"[SlidingWindowChunking] Finished reading file: {file_path} ({len(content)} bytes)")
             
             # Get language from file extension
             ext = get_file_extension(file_path)
@@ -327,12 +329,15 @@ class SlidingWindowChunkingStrategy(ChunkingStrategy):
                 chunks.append(chunk)
                 
                 # Move start index for next chunk
-                start_idx = end_idx - self.chunk_overlap
-                
-                # Ensure we make progress
-                if start_idx <= 0:
-                    start_idx = end_idx
+                next_start_idx = end_idx - self.chunk_overlap
+                if next_start_idx <= start_idx:
+                    next_start_idx = end_idx
+                if next_start_idx <= start_idx:
+                    # Prevent infinite loop
+                    break
+                start_idx = next_start_idx
             
+            logger.debug(f"[SlidingWindowChunking] Finished chunking file: {file_path} into {len(chunks)} chunks")
             return chunks
         except Exception as e:
             logger.error(f"Failed to chunk file {file_path}: {e}")

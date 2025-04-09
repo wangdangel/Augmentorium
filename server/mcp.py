@@ -11,10 +11,10 @@ import threading
 from typing import Dict, List, Optional, Any, Set, Tuple, Union, IO
 from queue import Queue
 
-from augmentorium.config.manager import ConfigManager
-from augmentorium.utils.db_utils import VectorDB
-from augmentorium.server.query import QueryProcessor, RelationshipEnricher, ContextBuilder, QueryExpander, QueryResult
-from augmentorium.indexer.embedder import OllamaEmbedder
+from config.manager import ConfigManager
+from utils.db_utils import VectorDB
+from server.query import QueryProcessor, RelationshipEnricher, ContextBuilder, QueryExpander, QueryResult
+from indexer.embedder import OllamaEmbedder
 
 logger = logging.getLogger(__name__)
 
@@ -415,8 +415,8 @@ def start_server(
 
 def main():
     """Main entry point"""
-    from augmentorium.config.manager import ConfigManager
-    from augmentorium.utils.logging import setup_logging
+    from config.manager import ConfigManager
+    from utils.logging import setup_logging
     import argparse
     
     # Parse arguments

@@ -8,8 +8,8 @@ import logging
 from typing import Dict, List, Optional, Any, Set, Tuple, Union
 from flask import Flask, request, jsonify, Response
 
-from augmentorium.config.manager import ConfigManager
-from augmentorium.server.mcp import MCPServer
+from config.manager import ConfigManager
+from server.mcp import MCPServer
 
 logger = logging.getLogger(__name__)
 

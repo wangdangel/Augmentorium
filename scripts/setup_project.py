@@ -12,9 +12,8 @@ import argparse
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Now we can import from the augmentorium package
-from augmentorium.config.manager import ConfigManager
-from augmentorium.utils.logging import setup_logging
-from augmentorium.scripts.setup_project import setup_project
+from config.manager import ConfigManager
+from utils.logging import setup_logging
 
 def main():
     """Main entry point for setting up a project"""
@@ -35,7 +34,8 @@ def main():
     logger.info(f"Setting up project: {args.project_path}")
     
     # Set up project
-    success = setup_project(args.project_path, args.template, args.name)
+    config_manager = ConfigManager()
+    success = config_manager.initialize_project(args.project_path, args.name)
     
     if success:
         logger.info("Project setup complete!")

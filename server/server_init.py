@@ -7,9 +7,9 @@ import logging
 import threading
 from typing import Dict, List, Optional, Any, Tuple
 
-from augmentorium.config.manager import ConfigManager
-from augmentorium.server.mcp import MCPServer, MCPService
-from augmentorium.server.api import APIServer
+from config.manager import ConfigManager
+from server.mcp import MCPServer, MCPService
+from server.api import APIServer
 
 logger = logging.getLogger(__name__)
 
@@ -66,8 +66,8 @@ def start_server(
 
 def main():
     """Main entry point for server"""
-    from augmentorium.config.manager import ConfigManager
-    from augmentorium.utils.logging import setup_logging
+    from config.manager import ConfigManager
+    from utils.logging import setup_logging
     import argparse
     import time
     

@@ -15,4 +15,5 @@ __pycache__/
 *.hypothesis/
 *.hypothesis/
 *.tox/
+.git/
 *.tox/

@@ -8,7 +8,7 @@ import logging.handlers
 from datetime import datetime
 from typing import Optional
 
-from augmentorium.config.defaults import DEFAULT_LOG_DIR
+from config.defaults import DEFAULT_LOG_DIR
 
 def setup_logging(level: int = logging.INFO, log_dir: Optional[str] = None) -> None:
     """

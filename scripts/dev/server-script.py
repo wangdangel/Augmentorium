@@ -14,10 +14,10 @@ from pathlib import Path
 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, root_dir)
 
-from augmentorium.config.manager import ConfigManager
-from augmentorium.utils.logging import setup_logging
-from augmentorium.server.mcp import MCPServer, MCPService
-from augmentorium.server.api import APIServer
+from config.manager import ConfigManager
+from utils.logging import setup_logging
+from server.mcp import MCPServer, MCPService
+from server.api import APIServer
 
 def main():
     """Main entry point for development server"""

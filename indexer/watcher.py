@@ -4,6 +4,7 @@ File system watcher for Augmentorium
 
 import os
 import time
+import json
 import hashlib
 import logging
 import threading
@@ -13,7 +14,7 @@ from queue import Queue
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler, FileSystemEvent
 
-from augmentorium.utils.path_utils import (
+from utils.path_utils import (
     normalize_path,
     get_relative_path,
     matches_any_pattern,

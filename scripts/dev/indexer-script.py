@@ -13,9 +13,9 @@ from pathlib import Path
 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, root_dir)
 
-from augmentorium.config.manager import ConfigManager
-from augmentorium.utils.logging import setup_logging
-from augmentorium.indexer import start_indexer
+from config.manager import ConfigManager
+from utils.logging import setup_logging
+from indexer.indexer_init import start_indexer
 
 def main():
     """Main entry point for development indexer"""

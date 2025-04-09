@@ -8,8 +8,8 @@ import time
 from typing import Dict, List, Optional, Any, Set, Tuple, Union
 from functools import lru_cache
 
-from augmentorium.utils.db_utils import VectorDB
-from augmentorium.indexer.embedder import OllamaEmbedder
+from utils.db_utils import VectorDB
+from indexer.embedder import OllamaEmbedder
 
 logger = logging.getLogger(__name__)
 

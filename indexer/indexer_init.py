@@ -9,12 +9,12 @@ import threading
 from typing import Dict, List, Optional, Any, Set, Tuple, Union
 from queue import Queue
 
-from augmentorium.config.manager import ConfigManager
-from augmentorium.utils.db_utils import VectorDB
-from augmentorium.utils.logging import ProjectLogger
-from augmentorium.indexer.watcher import FileWatcherService, FileEvent
-from augmentorium.indexer.chunker import Chunker, CodeChunk
-from augmentorium.indexer.embedder import OllamaEmbedder, ChunkEmbedder, ChunkProcessor
+from config.manager import ConfigManager
+from utils.db_utils import VectorDB
+from utils.logging import ProjectLogger
+from indexer.watcher import FileWatcherService, FileEvent, FileHasher
+from indexer.chunker import Chunker, CodeChunk
+from indexer.embedder import OllamaEmbedder, ChunkEmbedder, ChunkProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -68,8 +68,52 @@ class Indexer:
             )
         )
         
-        # Extract exclude patterns
-        self.exclude_patterns = self.project_config["project"].get("exclude_patterns", [])
+        # Default exclude patterns for unwanted files
+        self.default_exclude_patterns = [
+            "*.sqlite3",
+            "*.sqlite3-journal",
+            "*.db",
+            "*.bin",
+            "*.log",
+            "*.tmp",
+            "*.lock",
+            "*.cache",
+            "*.dat",
+            "package-lock.json",
+            ".git/",
+            ".qodo/",
+            ".venv/",
+            ".mypy_cache/",
+            ".pytest_cache/",
+            ".idea/",
+            ".vscode/",
+            "node_modules/",
+            "dist/",
+            "build/",
+            "__pycache__/",
+            "*.egg-info/",
+            "*.md"
+        ]
+        
+        # Merge project exclude patterns with defaults
+        project_excludes = self.project_config["project"].get("exclude_patterns", [])
+        self.exclude_patterns = list(set(project_excludes + self.default_exclude_patterns))
+        
+        # Initialize file hasher and load cache
+        cache_dir = os.path.join(
+            config_manager.global_config["general"]["log_dir"],
+            "cache"
+        )
+        os.makedirs(cache_dir, exist_ok=True)
+        project_hash = ""
+        try:
+            import hashlib
+            project_hash = hashlib.md5(self.project_path.encode()).hexdigest()
+        except Exception:
+            pass
+        self.hash_cache_file = os.path.join(cache_dir, f"{project_hash}_hash_cache.json")
+        self.file_hasher = FileHasher()
+        self.file_hasher.load_cache(self.hash_cache_file)
         
         self.logger.info(f"Initialized indexer for project: {self.project_name}")
     
@@ -84,10 +128,18 @@ class Indexer:
             int: Number of chunks processed
         """
         try:
+            # Skip ignored files
+            from utils.path_utils import get_relative_path, matches_any_pattern
+            rel_path = get_relative_path(file_path, self.project_path)
+            if matches_any_pattern(rel_path, self.exclude_patterns):
+                self.logger.info(f"Skipping ignored file: {file_path}")
+                return 0
+            
             self.logger.info(f"Processing file: {file_path}")
             
-            # Chunk the file
+            self.logger.debug(f"Chunking file: {file_path}")
             chunks = self.chunker.chunk_file(file_path)
+            self.logger.debug(f"Chunking complete: {file_path}, {len(chunks)} chunks")
             
             if not chunks:
                 self.logger.warning(f"No chunks generated for file: {file_path}")
@@ -95,8 +147,9 @@ class Indexer:
             
             self.logger.info(f"Generated {len(chunks)} chunks for file: {file_path}")
             
-            # Process chunks
+            self.logger.debug(f"Embedding {len(chunks)} chunks for file: {file_path}")
             num_processed = self.chunk_processor.process_chunks(chunks, show_progress=False)
+            self.logger.debug(f"Embedding complete: {file_path}")
             
             self.logger.info(f"Processed {num_processed} chunks for file: {file_path}")
             
@@ -168,19 +221,41 @@ class Indexer:
             events = watcher.scan_project(self.project_path)
             
             # Filter out non-files and files matching exclude patterns
-            file_events = [event for event in events if not event.is_directory]
+            from utils.path_utils import matches_any_pattern
+            file_events = [
+                event for event in events
+                if not event.is_directory and not matches_any_pattern(event.relative_path, self.exclude_patterns)
+            ]
             
             self.logger.info(f"Found {len(file_events)} files to index")
             
             # Process each file
             processed_count = 0
+            skipped_count = 0
             for i, event in enumerate(file_events):
+                # Check hash cache
+                file_hash = self.file_hasher.compute_hash(event.file_path)
+                key = event.file_path.replace("\\", "/").lower()
+                cached_hash = self.file_hasher.hash_cache.get(key)
+                if cached_hash == file_hash:
+                    self.logger.info(f"Skipping unchanged file: {event.file_path}")
+                    skipped_count += 1
+                    continue
+                # Update hash cache
+                if file_hash:
+                    self.file_hasher.hash_cache[key] = file_hash
                 self.logger.info(f"Indexing file {i+1}/{len(file_events)}: {event.relative_path}")
                 self.handle_file_event(event)
                 processed_count += 1
             
+            # Save updated hash cache
+            try:
+                self.file_hasher.save_cache(self.hash_cache_file)
+            except Exception as e:
+                self.logger.warning(f"Failed to save hash cache: {e}")
+            
             self.logger.info(f"Full index completed for project: {self.project_name}")
-            self.logger.info(f"Processed {processed_count} files")
+            self.logger.info(f"Processed {processed_count} files, skipped {skipped_count} unchanged files")
             
             return processed_count
         except Exception as e:
@@ -403,8 +478,8 @@ def start_indexer(
 
 def main():
     """Main entry point"""
-    from augmentorium.config.manager import ConfigManager
-    from augmentorium.utils.logging import setup_logging
+    from config.manager import ConfigManager
+    from utils.logging import setup_logging
     import argparse
     
     # Parse arguments

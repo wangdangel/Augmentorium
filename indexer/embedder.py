@@ -7,12 +7,13 @@ import json
 import time
 import logging
 import requests
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Optional, Any, Set, Tuple, Iterator, Union
 from tqdm import tqdm
 
-from augmentorium.indexer.chunker import CodeChunk
-from augmentorium.utils.db_utils import VectorDB
+from indexer.chunker import CodeChunk
+from utils.db_utils import VectorDB
 
 logger = logging.getLogger(__name__)
 
@@ -42,12 +43,45 @@ class OllamaEmbedder:
         self.batch_size = batch_size
         self.max_retries = max_retries
         self.retry_delay = retry_delay
+        self.disabled = False
         
         # Initialize embedding API endpoint
         self.embed_url = f"{self.base_url}/api/embeddings"
         
         logger.info(f"Initialized Ollama embedder with model: {self.model}")
+        self._verify_ollama()
     
+    def _verify_ollama(self):
+        """
+        Verify Ollama server is reachable and model is available or will be downloaded.
+        """
+        try:
+            tags_url = f"{self.base_url}/api/tags"
+            response = requests.get(tags_url, timeout=5)
+            response.raise_for_status()
+            data = response.json()
+            models = [m.get("name") for m in data.get("models", [])]
+            if self.model in models:
+                logger.info(f"Ollama server reachable. Model '{self.model}' is installed.")
+            else:
+                logger.info(f"Ollama server reachable. Model '{self.model}' is NOT installed. It will be downloaded on first use.")
+        except Exception as e:
+            logger.warning(f"Could not verify Ollama server or model '{self.model}': {e}")
+            while True:
+                user_input = input("Ollama server is unreachable. Type 'c' to continue anyway, 'a' to continue with alternative embedder (no embeddings), or 'q' to quit: ").strip().lower()
+                if user_input == 'q':
+                    print("Exiting due to unreachable Ollama server.")
+                    sys.exit(1)
+                elif user_input == 'c':
+                    print("Continuing despite unreachable Ollama server.")
+                    break
+                elif user_input == 'a':
+                    print("Continuing with alternative embedder (embeddings will be disabled).")
+                    self.disabled = True
+                    break
+                else:
+                    print("Invalid input. Please enter 'c', 'a', or 'q'.")
+
     def get_embedding(self, text: str) -> Optional[List[float]]:
         """
         Get embedding for a text
@@ -58,6 +92,9 @@ class OllamaEmbedder:
         Returns:
             Optional[List[float]]: Embedding vector, or None if failed
         """
+        if self.disabled:
+            logger.warning("Ollama embedder disabled. Returning None for embedding.")
+            return None
         try:
             # Prepare request
             data = {
@@ -100,6 +137,10 @@ class OllamaEmbedder:
         Returns:
             List[Optional[List[float]]]: List of embedding vectors
         """
+        if self.disabled:
+            logger.warning("Ollama embedder disabled. Returning None for all embeddings.")
+            return [None for _ in texts]
+        
         embeddings = []
         
         for text in texts:
@@ -266,13 +307,27 @@ class ChunkProcessor:
                 ids.append(chunk.id)
                 embeddings.append(embedding)
             
+            # Deduplicate IDs and corresponding data
+            seen_ids = set()
+            deduped_ids = []
+            deduped_documents = []
+            deduped_metadatas = []
+            deduped_embeddings = []
+            for id_val, doc, meta, emb in zip(ids, documents, metadatas, embeddings):
+                if id_val not in seen_ids:
+                    seen_ids.add(id_val)
+                    deduped_ids.append(id_val)
+                    deduped_documents.append(doc)
+                    deduped_metadatas.append(meta)
+                    deduped_embeddings.append(emb)
+
             # Store in vector database
             success = self.vector_db.upsert_documents(
                 collection_name=self.collection_name,
-                documents=documents,
-                metadatas=metadatas,
-                ids=ids,
-                embeddings=embeddings
+                documents=deduped_documents,
+                metadatas=deduped_metadatas,
+                ids=deduped_ids,
+                embeddings=deduped_embeddings
             )
             
             if success:
@@ -299,8 +354,7 @@ class ChunkProcessor:
             # Get chunks for the file
             results = self.vector_db.get_documents(
                 collection_name=self.collection_name,
-                where={"file_path": file_path},
-                include=["ids"]
+                where={"file_path": file_path}
             )
             
             if not results or not results.get("ids"):
