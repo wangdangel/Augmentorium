@@ -8,18 +8,20 @@ import threading
 from typing import Dict, List, Optional, Any, Tuple
 
 from config.manager import ConfigManager
-from server.mcp import MCPServer, MCPService
 from server.api import APIServer
+from server.query import QueryProcessor, RelationshipEnricher, ContextBuilder
+from utils.db_utils import VectorDB
+from indexer.embedder import OllamaEmbedder
 
 logger = logging.getLogger(__name__)
 
-def start_server(
+def start_api_server(
     config: ConfigManager,
     port: int = 6655,
     active_project: Optional[str] = None
-) -> Tuple[MCPService, APIServer, threading.Thread]:
+) -> Tuple[APIServer, threading.Thread]:
     """
-    Start the Augmentorium server
+    Start the Augmentorium API server (without MCP)
     
     Args:
         config: Configuration manager
@@ -27,26 +29,51 @@ def start_server(
         active_project: Path to the active project
     
     Returns:
-        Tuple[MCPService, APIServer, threading.Thread]: Server components
+        Tuple[APIServer, threading.Thread]: API server and its thread
     """
     try:
-        logger.info("Starting Augmentorium server")
+        logger.info("Starting Augmentorium API server")
         
         # Get server configuration
         server_config = config.global_config.get("server", {})
         host = server_config.get("host", "localhost")
         
-        # Create and start MCP service
-        mcp_service = MCPService(
-            config_manager=config,
-            active_project_path=active_project
+        # Setup active project database
+        db_path = None
+        if active_project:
+            db_path = config.get_db_path(active_project)
+        else:
+            projects = config.get_all_projects()
+            if projects:
+                first_project = list(projects.values())[0]
+                db_path = config.get_db_path(first_project)
+        
+        vector_db = VectorDB(db_path) if db_path else None
+        
+        # Initialize embedder
+        ollama_config = config.global_config.get("ollama", {})
+        embedder = OllamaEmbedder(
+            base_url=ollama_config.get("base_url", "http://localhost:11434"),
+            model=ollama_config.get("embedding_model", "codellama")
         )
-        mcp_service.start()
+        
+        # Initialize query processor and enrichers
+        query_processor = QueryProcessor(
+            vector_db=vector_db,
+            expander=None,
+            cache_size=config.global_config.get("server", {}).get("cache_size", 100)
+        )
+        relationship_enricher = RelationshipEnricher(vector_db)
+        context_builder = ContextBuilder(
+            max_context_size=config.global_config.get("server", {}).get("max_context_size", 8192)
+        )
         
         # Create API server
         api_server = APIServer(
             config_manager=config,
-            mcp_server=mcp_service.server,
+            query_processor=query_processor,
+            relationship_enricher=relationship_enricher,
+            context_builder=context_builder,
             host=host,
             port=port
         )
@@ -56,11 +83,11 @@ def start_server(
         api_thread.daemon = True
         api_thread.start()
         
-        logger.info(f"Augmentorium server started on {host}:{port}")
+        logger.info(f"Augmentorium API server started on {host}:{port}")
         
-        return mcp_service, api_server, api_thread
+        return api_server, api_thread
     except Exception as e:
-        logger.error(f"Failed to start server: {e}")
+        logger.error(f"Failed to start API server: {e}")
         raise
 
 
@@ -87,8 +114,8 @@ def main():
     # Load configuration
     config = ConfigManager(args.config)
     
-    # Start server
-    mcp_service, api_server, api_thread = start_server(config, args.port, args.project)
+    # Start API server only (no MCP)
+    api_server, api_thread = start_api_server(config, args.port, args.project)
     
     # Keep running
     try:

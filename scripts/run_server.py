@@ -17,10 +17,10 @@ if project_root not in sys.path:
 # Now import local modules
 from config.manager import ConfigManager
 from utils.logging import setup_logging
-from server.mcp import start_server
+from server.server_init import start_api_server
 
-def main():
-    """Main entry point for the server"""
+def parse_arguments():
+    """Parse command line arguments"""
     parser = argparse.ArgumentParser(description="Augmentorium Server")
     parser.add_argument("--config", help="Path to config file")
     parser.add_argument("--project", help="Path to the active project")
@@ -28,30 +28,27 @@ def main():
     parser.add_argument("--ollama-url", help="URL for the Ollama API (e.g., http://server-ip:11434)")
     parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], 
                       default="DEBUG", help="Set the logging level")
-    args = parser.parse_args()
+    return parser.parse_args()
+
+def main():
+    """Main entry point for the server"""
+    args = parse_arguments()
     
     # Setup logging
     log_level = getattr(logging, args.log_level)
     setup_logging(log_level)
     
-    # Create logger
     logger = logging.getLogger(__name__)
     logger.info("Starting Augmentorium Server")
     
-    # Load configuration
     config = ConfigManager(args.config)
     
-    # Update Ollama URL if specified
     if args.ollama_url:
-        if 'ollama' not in config.global_config:
-            config.global_config['ollama'] = {}
-        config.global_config['ollama']['base_url'] = args.ollama_url
+        config.global_config.setdefault('ollama', {})['base_url'] = args.ollama_url
         logger.info(f"Using Ollama API at: {args.ollama_url}")
     
-    # Start server
-    service = start_server(config, args.port, args.project)
+    api_server, api_thread = start_api_server(config, args.port, args.project)
     
-    # Keep running
     try:
         logger.info("Server started. Press Ctrl+C to stop.")
         print("Server started. Press Ctrl+C to stop.")
@@ -61,7 +58,6 @@ def main():
             
     except KeyboardInterrupt:
         logger.info("Stopping server")
-        service.stop()
         logger.info("Server stopped.")
 
 if __name__ == "__main__":

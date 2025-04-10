@@ -1,0 +1,172 @@
+:root {
+  --color-bg: #f5f5f5;
+  --color-text: #222;
+  --color-navbar-bg: #222;
+  --color-navbar-text: #fff;
+  --color-navbar-hover: #444;
+  --color-navbar-active: #555;
+  --color-main-bg: #fff;
+  --color-button-bg: #007acc;
+  --color-button-hover: #005fa3;
+  --color-button-disabled: #999;
+  --color-border: #ccc;
+  --color-pre-bg: #f4f4f4;
+  --color-card-bg: #fafafa;
+  --color-card-border: #ddd;
+}
+
+.dark-theme {
+  --color-bg: #121212;
+  --color-text: #eee;
+  --color-navbar-bg: #1e1e1e;
+  --color-navbar-text: #eee;
+  --color-navbar-hover: #333;
+  --color-navbar-active: #444;
+  --color-main-bg: #1e1e1e;
+  --color-button-bg: #3399ff;
+  --color-button-hover: #2277cc;
+  --color-button-disabled: #666;
+  --color-border: #444;
+  --color-pre-bg: #222;
+  --color-card-bg: #1a1a1a;
+  --color-card-border: #333;
+}
+
+/* rest of the CSS remains unchanged */
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  font-family: 'Segoe UI', Tahoma, sans-serif;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+.top-navbar {
+  background-color: var(--color-navbar-bg);
+  color: var(--color-navbar-text);
+  padding: 1rem;
+}
+
+.top-navbar ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  gap: 1rem;
+}
+
+.top-navbar li {
+  margin: 0;
+}
+
+.top-navbar a {
+  color: var(--color-navbar-text);
+  text-decoration: none;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.top-navbar a:hover {
+  background-color: var(--color-navbar-hover);
+}
+
+.top-navbar a.active {
+  background-color: var(--color-navbar-active);
+}
+
+.main-content {
+  flex: 1;
+  padding: 2rem;
+  background-color: var(--color-main-bg);
+  color: var(--color-text);
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+button {
+  padding: 0.4rem 0.8rem;
+  font-size: 1rem;
+  border: none;
+  border-radius: 4px;
+  background-color: var(--color-button-bg);
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+button:hover {
+  background-color: var(--color-button-hover);
+}
+
+button:disabled {
+  background-color: var(--color-button-disabled);
+  cursor: not-allowed;
+}
+
+input[type="text"],
+input[type="number"],
+input[type="file"],
+select,
+textarea {
+  padding: 0.4rem;
+  font-size: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--color-button-bg);
+}
+
+h1, h2, h3 {
+  margin-top: 0;
+}
+
+ul {
+  padding-left: 1.2rem;
+}
+
+li {
+  margin-bottom: 0.5rem;
+}
+
+pre {
+  background: var(--color-pre-bg);
+  padding: 1rem;
+  overflow-x: auto;
+  border-radius: 4px;
+}
+
+.card {
+  background: var(--color-card-bg);
+  border: 1px solid var(--color-card-border);
+  border-radius: 6px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+@media (max-width: 768px) {
+  .main-content {
+    padding: 1rem;
+  }
+
+  .top-navbar ul {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+}
