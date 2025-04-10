@@ -17,3 +17,9 @@ __pycache__/
 *.tox/
 .git/
 *.tox/
+
+# Executables
+*.exe
+
+# Augmentorium cache/logs
+~/.augmentorium/
