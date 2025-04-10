@@ -12,6 +12,7 @@ from queue import Queue
 from config.manager import ConfigManager
 from utils.db_utils import VectorDB
 from utils.logging import ProjectLogger
+from utils.path_utils import get_path_hash_key # Import the missing function
 from indexer.watcher import FileWatcherService, FileEvent, FileHasher
 from indexer.chunker import Chunker, CodeChunk
 from indexer.embedder import OllamaEmbedder, ChunkEmbedder, ChunkProcessor
@@ -25,6 +26,7 @@ class Indexer:
         self,
         config_manager: ConfigManager,
         project_path: str
+        # Remove file_watcher_service reference
     ):
         """
         Initialize indexer
@@ -32,9 +34,11 @@ class Indexer:
         Args:
             config_manager: Configuration manager
             project_path: Path to the project
+            # Remove file_watcher_service from Args
         """
         self.config_manager = config_manager
         self.project_path = os.path.abspath(project_path)
+        # Remove storing the service reference
         
         # Load project configuration
         self.project_config = config_manager.get_project_config(self.project_path)
@@ -68,36 +72,12 @@ class Indexer:
             )
         )
         
-        # Default exclude patterns for unwanted files
-        self.default_exclude_patterns = [
-            "*.sqlite3",
-            "*.sqlite3-journal",
-            "*.db",
-            "*.bin",
-            "*.log",
-            "*.tmp",
-            "*.lock",
-            "*.cache",
-            "*.dat",
-            "package-lock.json",
-            ".git/",
-            ".qodo/",
-            ".venv/",
-            ".mypy_cache/",
-            ".pytest_cache/",
-            ".idea/",
-            ".vscode/",
-            "node_modules/",
-            "dist/",
-            "build/",
-            "__pycache__/",
-            "*.egg-info/",
-            "*.md"
-        ]
-        
-        # Merge project exclude patterns with defaults
+        # Load ignore patterns from config.yaml
+        import pathspec
+        ignore_patterns = self.config_manager.global_config.get("indexer", {}).get("ignore_patterns", [])
         project_excludes = self.project_config["project"].get("exclude_patterns", [])
-        self.exclude_patterns = list(set(project_excludes + self.default_exclude_patterns))
+        combined_patterns = list(set(project_excludes + ignore_patterns))
+        self.ignore_spec = pathspec.PathSpec.from_lines("gitwildmatch", combined_patterns)
         
         # Initialize file hasher and load cache
         cache_dir = os.path.join(
@@ -129,9 +109,9 @@ class Indexer:
         """
         try:
             # Skip ignored files
-            from utils.path_utils import get_relative_path, matches_any_pattern
+            from utils.path_utils import get_relative_path
             rel_path = get_relative_path(file_path, self.project_path)
-            if matches_any_pattern(rel_path, self.exclude_patterns):
+            if self.ignore_spec.match_file(rel_path):
                 self.logger.info(f"Skipping ignored file: {file_path}")
                 return 0
             
@@ -213,38 +193,33 @@ class Indexer:
         """
         try:
             self.logger.info(f"Starting full index for project: {self.project_name}")
-            
-            # Create file watcher to use its scanning functionality
-            watcher = FileWatcherService()
-            
-            # Scan for files
-            events = watcher.scan_project(self.project_path)
-            
-            # Filter out non-files and files matching exclude patterns
-            from utils.path_utils import matches_any_pattern
-            file_events = [
-                event for event in events
-                if not event.is_directory and not matches_any_pattern(event.relative_path, self.exclude_patterns)
-            ]
-            
-            self.logger.info(f"Found {len(file_events)} files to index")
-            
+
+            # Call the static scan_project method directly from FileWatcherService
+            # Pass the indexer's own ignore_spec
+            events = FileWatcherService.scan_project(self.project_path, self.ignore_spec)
+
+            # The scan_project method now handles filtering based on ignore_spec.
+
+            self.logger.info(f"Found {len(events)} files to index after applying ignore patterns")
+
             # Process each file
             processed_count = 0
             skipped_count = 0
-            for i, event in enumerate(file_events):
+            # Iterate directly over events returned by scan_project
+            for i, event in enumerate(events):
                 # Check hash cache
                 file_hash = self.file_hasher.compute_hash(event.file_path)
-                key = event.file_path.replace("\\", "/").lower()
+                # Use normalized path for hash key consistency
+                key = get_path_hash_key(event.file_path) # Use helper function
                 cached_hash = self.file_hasher.hash_cache.get(key)
                 if cached_hash == file_hash:
-                    self.logger.info(f"Skipping unchanged file: {event.file_path}")
+                    self.logger.info(f"Skipping unchanged file: {event.relative_path}")
                     skipped_count += 1
                     continue
                 # Update hash cache
                 if file_hash:
                     self.file_hasher.hash_cache[key] = file_hash
-                self.logger.info(f"Indexing file {i+1}/{len(file_events)}: {event.relative_path}")
+                self.logger.info(f"Indexing file {i+1}/{len(events)}: {event.relative_path}")
                 self.handle_file_event(event)
                 processed_count += 1
             
@@ -315,16 +290,20 @@ class IndexerService:
                 logger.warning(f"Project already being indexed: {project_path}")
                 return False
             
-            # Initialize indexer
+            # Initialize indexer (no longer passing file_watcher_service)
             indexer = Indexer(self.config_manager, project_path)
             self.indexers[project_path] = indexer
-            
-            # Get project config
+
+            # Get project config for combined patterns
             project_config = self.config_manager.get_project_config(project_path)
-            exclude_patterns = project_config["project"].get("exclude_patterns", [])
             
-            # Add to file watcher
-            self.file_watcher.add_project(project_path, exclude_patterns)
+            # Combine global and project-specific ignore patterns
+            global_ignore_patterns = self.config_manager.global_config.get("indexer", {}).get("ignore_patterns", [])
+            project_excludes = project_config["project"].get("exclude_patterns", [])
+            combined_patterns = list(set(project_excludes + global_ignore_patterns))
+            
+            # Add to file watcher using combined patterns
+            self.file_watcher.add_project(project_path, combined_patterns)
             
             logger.info(f"Added project to index: {project_path}")
             

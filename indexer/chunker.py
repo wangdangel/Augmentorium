@@ -5,6 +5,7 @@ Code chunking system for Augmentorium
 import os
 import re
 import json
+import json5
 import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Set, Tuple, Iterator, Union
@@ -362,8 +363,8 @@ class JsonObjectChunkingStrategy(ChunkingStrategy):
             with open(file_path, "r", encoding="utf-8", errors="replace") as f:
                 content = f.read()
             
-            # Parse JSON
-            data = json.loads(content)
+            # Parse JSON (lenient, supports comments/trailing commas)
+            data = json5.loads(content)
             
             # Create chunks
             chunks = []

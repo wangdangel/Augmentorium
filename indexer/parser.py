@@ -8,8 +8,8 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Set, Tuple, Union, Iterator
 from concurrent.futures import ThreadPoolExecutor
-from tree_sitter import Language, Parser, Node, Tree
-from utils.grammar_manager import GrammarManager
+from tree_sitter_language_pack import get_language, get_parser
+from tree_sitter import Node, Tree
 
 from utils.path_utils import get_file_extension
 
@@ -62,6 +62,36 @@ EXTENSION_TO_LANGUAGE = {
 
 class TreeSitterManager:
     """Manager for Tree-sitter languages and parsers"""
+
+    def parse_file(self, file_path: str) -> Optional['Tree']:
+        """
+        Parse a file and return the Tree-sitter parse tree.
+
+        Args:
+            file_path: Path to the file
+
+        Returns:
+            Tree object if successful, None otherwise
+        """
+        try:
+            language = self.detect_language(file_path)
+            if not language:
+                logger.warning(f"Could not detect language for file: {file_path}")
+                return None
+            if not self.load_language(language):
+                logger.warning(f"Language '{language}' not available, cannot parse file: {file_path}")
+                return None
+            parser = self.parsers.get(language)
+            if not parser:
+                logger.warning(f"No parser found for language: {language}")
+                return None
+            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read()
+            tree = parser.parse(bytes(content, "utf8"))
+            return tree
+        except Exception as e:
+            logger.error(f"Failed to parse file {file_path}: {e}")
+            return None
     
     def detect_language(self, file_path: str) -> Optional[str]:
         """
@@ -76,82 +106,30 @@ class TreeSitterManager:
         ext = os.path.splitext(file_path)[1].lower()
         return EXTENSION_TO_LANGUAGE.get(ext)
     
-    def __init__(self, grammar_dir: Optional[str] = None, auto_install: bool = False):
+    def __init__(self):
         """
-        Initialize Tree-sitter manager
-        
-        Args:
-            grammar_dir: Directory containing Tree-sitter grammars
-            auto_install: Whether to automatically install missing grammars
+        Initialize Tree-sitter manager.
         """
-        # Set default grammar directory
-        if grammar_dir is None:
-            home_dir = str(Path.home())
-            grammar_dir = os.path.join(home_dir, ".augmentorium", "tree-sitter-grammars")
-        
-        self.grammar_dir = grammar_dir
-        self.auto_install = auto_install
-        
-        # Initialize grammar manager
-        self.grammar_manager = GrammarManager(grammar_dir)
-        
-        # Initialize languages and parsers
-        self.languages: Dict[str, Language] = {}
-        self.parsers: Dict[str, Parser] = {}
-        
-        logger.info(f"Initialized Tree-sitter manager with grammar directory: {self.grammar_dir}")
-        logger.info(f"Found {len(self.grammar_manager.installed_grammars)} installed grammars")
+        self.languages: Dict[str, Any] = {}
+        self.parsers: Dict[str, Any] = {}
+        logger.info("Initialized Tree-sitter manager using language pack with plain text fallback.")
     
     def load_language(self, language_name: str) -> bool:
         """
-        Load a Tree-sitter language
-        
-        Args:
-            language_name: Name of the language
-            
-        Returns:
-            bool: True if successful, False otherwise
+        Load a Tree-sitter language using the language pack.
+        Falls back to plain text if not available.
         """
         if language_name in self.languages:
             return True
-        
         try:
-            # Check if we have a mapping for this language
-            grammar_name = LANGUAGE_GRAMMARS.get(language_name)
-            if not grammar_name:
-                logger.warning(f"No Tree-sitter grammar mapping for language: {language_name}")
-                return False
-            
-            # Check if grammar is installed
-            if not self.grammar_manager.is_grammar_installed(grammar_name):
-                if self.auto_install:
-                    logger.info(f"Grammar {grammar_name} not installed, attempting to install it")
-                    if not self.grammar_manager.install_grammar(grammar_name):
-                        logger.error(f"Failed to install grammar: {grammar_name}")
-                        return False
-                else:
-                    logger.error(f"Grammar {grammar_name} not installed. Run 'augmentorium-grammars install {grammar_name}' to install it.")
-                    return False
-            
-            # Get grammar path
-            grammar_path = self.grammar_manager.get_grammar_path(grammar_name)
-            if not grammar_path:
-                logger.error(f"Grammar path not found: {grammar_name}")
-                return False
-            
-            # Load the language
-            language = Language(grammar_path, grammar_name)
-            self.languages[language_name] = language
-            
-            # Create a parser
-            parser = Parser()
-            parser.set_language(language)
+            parser = get_parser(language_name)
+            language = get_language(language_name)
             self.parsers[language_name] = parser
-            
-            logger.info(f"Loaded Tree-sitter language: {language_name}")
+            self.languages[language_name] = language
+            logger.info(f"Loaded language from language pack: {language_name}")
             return True
         except Exception as e:
-            logger.error(f"Failed to load Tree-sitter language {language_name}: {e}")
+            logger.warning(f"Language '{language_name}' not found in language pack, falling back to plain text: {e}")
             return False
 
 
@@ -296,10 +274,25 @@ class CodeParser:
         try:
             # Detect language
             language = self.tree_sitter_manager.detect_language(file_path)
-            if not language:
-                logger.warning(f"Could not detect language for file: {file_path}")
-                return None
-            
+            # Try to load language and parser
+            has_grammar = language and self.tree_sitter_manager.load_language(language)
+
+            if not has_grammar:
+                logger.warning(f"Falling back to plain text for file: {file_path}")
+                with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                    content = f.read()
+                lines = content.splitlines()
+                root = CodeStructure(
+                    node_type="plaintext",
+                    name=os.path.basename(file_path),
+                    start_point=(0, 0),
+                    end_point=(len(lines), 0),
+                    file_path=file_path,
+                    language="plaintext"
+                )
+                root.metadata["content"] = content
+                return root
+
             # Parse file using Tree-sitter
             tree = self.tree_sitter_manager.parse_file(file_path)
             if not tree:

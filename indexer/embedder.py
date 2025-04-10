@@ -26,7 +26,9 @@ class OllamaEmbedder:
         model: str = "codellama",
         batch_size: int = 10,
         max_retries: int = 3,
-        retry_delay: float = 1.0
+        retry_delay: float = 1.0,
+        warmup_timeout: float = 120.0,
+        warmup_interval: float = 2.0
     ):
         """
         Initialize Ollama embedder
@@ -37,12 +39,16 @@ class OllamaEmbedder:
             batch_size: Batch size for embedding requests
             max_retries: Maximum number of retries for failed requests
             retry_delay: Delay between retries (seconds)
+            warmup_timeout: Max seconds to wait for model to load
+            warmup_interval: Seconds between warmup checks
         """
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.batch_size = batch_size
         self.max_retries = max_retries
         self.retry_delay = retry_delay
+        self.warmup_timeout = warmup_timeout
+        self.warmup_interval = warmup_interval
         self.disabled = False
         
         # Initialize embedding API endpoint
@@ -50,6 +56,31 @@ class OllamaEmbedder:
         
         logger.info(f"Initialized Ollama embedder with model: {self.model}")
         self._verify_ollama()
+
+    def warm_up(self):
+        """
+        Wait until Ollama model is loaded and responsive.
+        """
+        logger.info(f"Starting Ollama warm-up for model '{self.model}' (timeout {self.warmup_timeout}s)...")
+        start_time = time.time()
+        while True:
+            try:
+                tags_url = f"{self.base_url}/api/tags"
+                response = requests.get(tags_url, timeout=5)
+                response.raise_for_status()
+                data = response.json()
+                models = [m.get("name") for m in data.get("models", [])]
+                if self.model in models:
+                    logger.info(f"Ollama model '{self.model}' is loaded and ready.")
+                    return True
+                else:
+                    logger.info(f"Ollama model '{self.model}' not yet loaded, waiting...")
+            except Exception as e:
+                logger.info(f"Ollama warm-up check failed: {e}, retrying...")
+            if time.time() - start_time > self.warmup_timeout:
+                logger.warning(f"Ollama warm-up timed out after {self.warmup_timeout}s.")
+                return False
+            time.sleep(self.warmup_interval)
     
     def _verify_ollama(self):
         """
@@ -157,7 +188,7 @@ class ChunkEmbedder:
         self,
         ollama_embedder: Optional[OllamaEmbedder] = None,
         batch_size: int = 10,
-        max_workers: int = 4
+        max_workers: int = 1
     ):
         """
         Initialize chunk embedder
@@ -303,7 +334,19 @@ class ChunkProcessor:
             
             for chunk, embedding in valid_results:
                 documents.append(chunk.text)
-                metadatas.append(chunk.metadata)
+                # Sanitize metadata: convert lists to strings, remove empty lists
+                sanitized_meta = {}
+                for k, v in chunk.metadata.items():
+                    if isinstance(v, list):
+                        if len(v) == 0:
+                            sanitized_meta[k] = ""
+                        else:
+                            sanitized_meta[k] = ", ".join(str(item) for item in v)
+                    elif v is None:
+                        sanitized_meta[k] = ""
+                    else:
+                        sanitized_meta[k] = v
+                metadatas.append(sanitized_meta)
                 ids.append(chunk.id)
                 embeddings.append(embedding)
             

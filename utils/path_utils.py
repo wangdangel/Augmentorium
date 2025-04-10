@@ -97,7 +97,7 @@ def get_path_hash_key(path: str, base_path: Optional[str] = None) -> str:
 
 def matches_any_pattern(path: str, patterns: List[str]) -> bool:
     """
-    Check if a path matches any of the given glob patterns
+    Check if a path matches any of the given glob patterns (supports recursive **)
     
     Args:
         path: Path to check
@@ -106,8 +106,11 @@ def matches_any_pattern(path: str, patterns: List[str]) -> bool:
     Returns:
         bool: True if path matches any pattern, False otherwise
     """
+    # Normalize path: remove leading ./ and trailing slashes
+    norm_path = path.lstrip("./\\").rstrip("/\\")
+    p = Path(norm_path)
     for pattern in patterns:
-        if fnmatch.fnmatch(path, pattern):
+        if p.match(pattern):
             return True
     return False
 

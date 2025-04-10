@@ -11,13 +11,14 @@ import threading
 from pathlib import Path
 from typing import Dict, List, Set, Optional, Any, Callable
 from queue import Queue
+import pathspec  # Import pathspec here
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler, FileSystemEvent
 
 from utils.path_utils import (
     normalize_path,
     get_relative_path,
-    matches_any_pattern,
+    # matches_any_pattern is no longer needed here for scan_project
     get_path_hash_key,
 )
 
@@ -205,6 +206,7 @@ class ProjectEventHandler(FileSystemEventHandler):
             exclude_patterns: Patterns to exclude
             file_hasher: Optional file hasher for tracking changes
         """
+        import pathspec
         self.project_path = normalize_path(project_path)
         self.event_queue = event_queue
         self.exclude_patterns = exclude_patterns or []
@@ -212,6 +214,7 @@ class ProjectEventHandler(FileSystemEventHandler):
         
         # Add default exclude patterns for the Augmentorium directory
         self.exclude_patterns.append("**/.augmentorium/**")
+        self.ignore_spec = pathspec.PathSpec.from_lines("gitwildmatch", self.exclude_patterns)
     
     def _should_exclude(self, path: str) -> bool:
         """
@@ -224,7 +227,7 @@ class ProjectEventHandler(FileSystemEventHandler):
             bool: True if path should be excluded, False otherwise
         """
         rel_path = get_relative_path(path, self.project_path)
-        return matches_any_pattern(rel_path, self.exclude_patterns)
+        return self.ignore_spec.match_file(rel_path)
     
     def on_created(self, event: FileSystemEvent) -> None:
         """Handle file creation events"""
@@ -569,50 +572,68 @@ class FileWatcherService:
         for watcher in self.projects.values():
             watcher.stop()
             watcher.join()
-    
-    def scan_project(self, project_path: str) -> List[FileEvent]:
+
+    @staticmethod
+    def scan_project(project_path: str, ignore_spec: pathspec.PathSpec) -> List[FileEvent]:
         """
-        Scan a project for initial indexing
-        
+        Scan a project for initial indexing using a provided ignore spec.
+
         Args:
             project_path: Path to the project
-            
+            ignore_spec: Compiled pathspec object for exclusions
+
         Returns:
             List[FileEvent]: List of file events
         """
         project_path = normalize_path(project_path)
         events = []
-        
+
         # Check if project exists
         if not os.path.isdir(project_path):
             logger.error(f"Project directory does not exist: {project_path}")
             return events
-        
-        # Get watcher for exclude patterns
-        watcher = self.projects.get(project_path)
-        exclude_patterns = watcher.exclude_patterns if watcher else []
-        
+
+        # Ensure ignore_spec is valid
+        if not ignore_spec:
+             logger.error(f"Invalid ignore_spec provided for project {project_path} scan.")
+             # Decide how to handle: maybe return empty or use a default empty spec?
+             # Using an empty spec allows scan to proceed but might include unwanted files.
+             ignore_spec = pathspec.PathSpec.from_lines("gitwildmatch", [])
+
+
         # Walk directory
         for root, dirs, files in os.walk(project_path):
-            # Apply exclude patterns to directories
+            # Apply ignore_spec to directories
             dirs_to_remove = []
             for d in dirs:
                 dir_path = os.path.join(root, d)
+                # Use relative path from project root for matching
                 rel_path = get_relative_path(dir_path, project_path)
-                if matches_any_pattern(rel_path, exclude_patterns):
+                # Ensure consistent path separators for matching
+                rel_path_unix = rel_path.replace(os.sep, '/')
+                if ignore_spec.match_file(rel_path_unix):
+                    logger.debug(f"Skipping directory (ignore spec match): {rel_path}")
                     dirs_to_remove.append(d)
-            
+                else:
+                    logger.debug(f"Including directory: {rel_path}") # Log remains for visibility
+
+            # Modify dirs in place for os.walk
             for d in dirs_to_remove:
                 dirs.remove(d)
-            
+
             # Process files
             for file in files:
                 file_path = os.path.join(root, file)
+                # Use relative path from project root for matching
                 rel_path = get_relative_path(file_path, project_path)
-                
-                # Skip excluded files
-                if matches_any_pattern(rel_path, exclude_patterns):
+                # Ensure consistent path separators for matching
+                rel_path_unix = rel_path.replace(os.sep, '/')
+
+                if ignore_spec.match_file(rel_path_unix):
+                    logger.debug(f"Skipping file (ignore spec match): {rel_path}")
                     continue
+                else:
+                    logger.debug(f"Including file: {rel_path}") # Log remains for visibility
                 
                 # Create event
                 events.append(FileEvent(
