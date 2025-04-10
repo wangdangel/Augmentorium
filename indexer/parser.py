@@ -105,83 +105,14 @@ class TreeSitterManager:
         """
         ext = os.path.splitext(file_path)[1].lower()
         return EXTENSION_TO_LANGUAGE.get(ext)
-
-    def __init__(self, grammar_dir: Optional[str] = None, auto_install: bool = True):
+    
+    def __init__(self):
         """
         Initialize Tree-sitter manager.
-
-        Args:
-            grammar_dir: Directory containing grammars (default: bundled 'grammars' dir)
-            auto_install: Whether to attempt auto-install of missing grammars
         """
-        # Set default grammar directory to bundled grammars/
-        if grammar_dir is None:
-            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            grammar_dir = os.path.join(project_root, "grammars")
-        
-        self.grammar_dir = grammar_dir
-        self.auto_install = auto_install
-        
-        # Initialize grammar manager
-        self.grammar_manager = GrammarManager(grammar_dir)
-        
-        # If no grammars installed, attempt to install all
-        if not self.grammar_manager.installed_grammars:
-            logger.info("No Tree-sitter grammars found. Attempting to install all supported grammars...")
-            deps = self.grammar_manager.check_system_dependencies()
-            missing = [k for k, v in deps.items() if not v]
-            if missing:
-                logger.warning(f"Cannot install grammars automatically. Missing dependencies: {', '.join(missing)}")
-                self.grammar_manager.print_installation_instructions()
-            else:
-                successful, failed = self.grammar_manager.install_all_grammars()
-                logger.info(f"Installed grammars: {successful}")
-                if failed:
-                    logger.warning(f"Failed to install grammars: {failed}")
-                # Refresh installed grammars list
-                self.grammar_manager.installed_grammars = self.grammar_manager._get_installed_grammars()
-        
-        # Initialize languages and parsers
         self.languages: Dict[str, Any] = {}
         self.parsers: Dict[str, Any] = {}
-        
-        logger.info(f"Initialized Tree-sitter manager with grammar directory: {self.grammar_dir}")
-        logger.info(f"Found {len(self.grammar_manager.installed_grammars)} installed grammars")
-=======
-        # Set default grammar directory to bundled grammars/
-        if grammar_dir is None:
-            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            grammar_dir = os.path.join(project_root, "grammars")
-        
-        self.grammar_dir = grammar_dir
-        self.auto_install = auto_install
-        
-        # Initialize grammar manager
-        self.grammar_manager = GrammarManager(grammar_dir)
-        
-        # If no grammars installed, attempt to install all
-        if not self.grammar_manager.installed_grammars:
-            logger.info("No Tree-sitter grammars found. Attempting to install all supported grammars...")
-            deps = self.grammar_manager.check_system_dependencies()
-            missing = [k for k, v in deps.items() if not v]
-            if missing:
-                logger.warning(f"Cannot install grammars automatically. Missing dependencies: {', '.join(missing)}")
-                self.grammar_manager.print_installation_instructions()
-            else:
-                successful, failed = self.grammar_manager.install_all_grammars()
-                logger.info(f"Installed grammars: {successful}")
-                if failed:
-                    logger.warning(f"Failed to install grammars: {failed}")
-                # Refresh installed grammars list
-                self.grammar_manager.installed_grammars = self.grammar_manager._get_installed_grammars()
-        
-        # Initialize languages and parsers
-        self.languages: Dict[str, Language] = {}
-        self.parsers: Dict[str, Parser] = {}
-        
-        logger.info(f"Initialized Tree-sitter manager with grammar directory: {self.grammar_dir}")
-        logger.info(f"Found {len(self.grammar_manager.installed_grammars)} installed grammars")
->>>>>>> 7f2260f8d6e53b1c83b2ba3125bddfc8fe1d41f9
+        logger.info("Initialized Tree-sitter manager using language pack with plain text fallback.")
     
     def load_language(self, language_name: str) -> bool:
         """
