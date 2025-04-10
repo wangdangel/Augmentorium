@@ -31,7 +31,6 @@ class ConfigManager:
         # Initialize with defaults
         self.global_config = deepcopy(DEFAULT_GLOBAL_CONFIG)
         self.global_config_path = os.path.join(GLOBAL_CONFIG_DIR, "global_config.yaml")
-        self.projects_path = os.path.join(GLOBAL_CONFIG_DIR, "projects.yaml")
 
         # Always ensure global config dir exists
         self._ensure_global_config_dir()
@@ -59,8 +58,11 @@ class ConfigManager:
             # Fallback: load global config file if it exists
             self._load_global_config()
 
-        # Initialize project registry
-        self.projects = self._load_projects()
+        # Initialize project registry inside global config
+        if "projects" not in self.global_config:
+            self.global_config["projects"] = {}
+
+        self.projects = self.global_config["projects"]
     
     def _ensure_global_config_dir(self) -> None:
         """Ensure global configuration directory exists"""
@@ -99,27 +101,6 @@ class ConfigManager:
         except Exception as e:
             logger.error(f"Failed to load config from {config_path}: {e}")
     
-    def _load_projects(self) -> Dict[str, str]:
-        """Load project registry"""
-        projects = {}
-        if os.path.exists(self.projects_path):
-            try:
-                with open(self.projects_path, 'r') as f:
-                    loaded_projects = yaml.safe_load(f)
-                    if loaded_projects:
-                        projects = loaded_projects
-            except Exception as e:
-                logger.warning(f"Failed to load projects registry: {e}")
-        return projects
-    
-    def _save_projects(self) -> None:
-        """Save project registry to file"""
-        try:
-            with open(self.projects_path, 'w') as f:
-                yaml.dump(self.projects, f, default_flow_style=False)
-        except Exception as e:
-            logger.error(f"Failed to save projects registry: {e}")
-    
     def add_project(self, project_path: str, project_name: Optional[str] = None) -> bool:
         """
         Add a project to the registry
@@ -141,15 +122,15 @@ class ConfigManager:
             if not project_name:
                 project_name = os.path.basename(abs_path)
             
-            # Add to projects registry
+            # Add to projects registry inside global config
             self.projects[project_name] = abs_path
-            self._save_projects()
+            self._save_global_config()
             
             return True
         except Exception as e:
             logger.error(f"Failed to add project: {e}")
             return False
-    
+
     def remove_project(self, project_name: str) -> bool:
         """
         Remove a project from the registry
@@ -162,7 +143,7 @@ class ConfigManager:
         """
         if project_name in self.projects:
             del self.projects[project_name]
-            self._save_projects()
+            self._save_global_config()
             return True
         return False
     

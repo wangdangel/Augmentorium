@@ -51,6 +51,41 @@ class Indexer:
         db_path = config_manager.get_db_path(self.project_path)
         self.vector_db = VectorDB(db_path)
         
+        # Initialize graph database if needed
+        try:
+            graph_db_path = os.path.join(self.project_path, ".augmentorium", "code_graph.db")
+            if not os.path.exists(graph_db_path):
+                from utils.graph_db import get_connection
+                conn = get_connection(graph_db_path)
+                c = conn.cursor()
+                c.execute("""
+                CREATE TABLE IF NOT EXISTS nodes (
+                    id TEXT PRIMARY KEY,
+                    type TEXT,
+                    name TEXT,
+                    file_path TEXT,
+                    start_line INTEGER,
+                    end_line INTEGER,
+                    metadata TEXT
+                )
+                """)
+                c.execute("""
+                CREATE TABLE IF NOT EXISTS edges (
+                    source_id TEXT,
+                    target_id TEXT,
+                    relation_type TEXT,
+                    metadata TEXT
+                )
+                """)
+                c.execute("CREATE INDEX IF NOT EXISTS idx_edges_source ON edges(source_id)")
+                c.execute("CREATE INDEX IF NOT EXISTS idx_edges_target ON edges(target_id)")
+                c.execute("CREATE INDEX IF NOT EXISTS idx_edges_relation ON edges(relation_type)")
+                conn.commit()
+                conn.close()
+                print(f"Graph database initialized at {graph_db_path}")
+        except Exception as e:
+            print(f"Failed to initialize graph database: {e}")
+        
         # Set up Ollama embedder
         ollama_config = config_manager.global_config.get("ollama", {})
         self.ollama_embedder = OllamaEmbedder(
@@ -133,6 +168,37 @@ class Indexer:
             
             self.logger.info(f"Processed {num_processed} chunks for file: {file_path}")
             
+            # --- Insert/update graph DB ---
+            try:
+                import json
+                from utils.graph_db import get_connection, insert_or_update_node, insert_edge
+
+                graph_db_path = os.path.join(self.project_path, ".augmentorium", "code_graph.db")
+                conn = get_connection(graph_db_path)
+
+                for chunk in chunks:
+                    node_data = {
+                        "id": chunk.id,
+                        "type": chunk.chunk_type,
+                        "name": chunk.name,
+                        "file_path": chunk.file_path,
+                        "start_line": chunk.start_line,
+                        "end_line": chunk.end_line,
+                        "metadata": chunk.metadata
+                    }
+                    insert_or_update_node(conn, node_data)
+
+                    # Insert edges for references if present
+                    refs = chunk.metadata.get("references", [])
+                    for ref in refs:
+                        # ref can be a symbol name or ID; here we store as-is
+                        insert_edge(conn, chunk.id, ref, "references")
+
+                conn.commit()
+                conn.close()
+            except Exception as e:
+                self.logger.warning(f"Failed to update graph DB for {file_path}: {e}")
+
             return num_processed
         except Exception as e:
             self.logger.error(f"Failed to process file {file_path}: {e}")

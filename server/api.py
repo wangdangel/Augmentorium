@@ -61,9 +61,40 @@ class APIServer:
         
         @self.app.route("/api/projects", methods=["GET"])
         def get_projects() -> Response:
-            """Get list of projects"""
-            projects = self.config_manager.get_all_projects()
-            return jsonify({"projects": projects})
+            """Get list of projects with metadata"""
+            import time
+
+            def get_dir_size(path):
+                total = 0
+                for dirpath, dirnames, filenames in os.walk(path):
+                    for f in filenames:
+                        fp = os.path.join(dirpath, f)
+                        try:
+                            total += os.path.getsize(fp)
+                        except Exception:
+                            pass
+                return total
+
+            projects_dict = self.config_manager.get_all_projects()
+            projects_list = []
+            for name, path in projects_dict.items():
+                size = 0
+                try:
+                    size = get_dir_size(path)
+                except Exception:
+                    pass
+
+                # TODO: Replace with real status and lastIndexed
+                project_info = {
+                    "name": name,
+                    "path": path,
+                    "status": "idle",
+                    "size": size,
+                    "lastIndexed": None
+                }
+                projects_list.append(project_info)
+
+            return jsonify({"projects": projects_list})
         
         @self.app.route("/api/projects", methods=["POST"])
         def add_project() -> Response:

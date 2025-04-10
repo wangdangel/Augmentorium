@@ -33,32 +33,44 @@ const ProjectList: React.FC<ProjectListProps> = ({ projects, activeProjectName, 
   };
 
   return (
-    <ul>
-      {projects.map((proj) => (
-        <li key={proj.name} style={{ marginBottom: '1rem' }}>
-          <div>
-            <strong>{proj.name}</strong> {activeProjectName === proj.name && <span style={{ color: 'green' }}>(Active)</span>}
-          </div>
-          <div>Path: {proj.path}</div>
-          {proj.status && <div>Status: {proj.status}</div>}
-          {proj.size !== undefined && <div>Size: {(proj.size / (1024 * 1024)).toFixed(2)} MB</div>}
-          {proj.lastIndexed && <div>Last Indexed: {new Date(proj.lastIndexed).toLocaleString()}</div>}
-          <button
-            style={{ marginRight: '0.5rem', marginTop: '0.5rem' }}
-            onClick={() => handleSetActive(proj.path)}
-            disabled={settingActive === proj.path}
-          >
-            {settingActive === proj.path ? 'Setting...' : 'Set Active'}
-          </button>
-          <button
-            onClick={() => handleDelete(proj.name)}
-            disabled={deleting === proj.name}
-          >
-            {deleting === proj.name ? 'Removing...' : 'Remove'}
-          </button>
-        </li>
-      ))}
-    </ul>
+    <div>
+      <ul>
+        {projects.map((proj) => (
+          <li key={proj.name} style={{ marginBottom: '1rem' }}>
+            <div>
+              <strong>{proj.name}</strong>{' '}
+              {activeProjectName === proj.name && (
+                <span style={{ color: 'green', fontWeight: 'bold' }}>
+                  (Active Project)
+                </span>
+              )}
+            </div>
+            <div>Path: {proj.path}</div>
+            {proj.status && <div>Status: {proj.status}</div>}
+            {proj.size !== undefined && <div>Size: {(proj.size / (1024 * 1024)).toFixed(2)} MB</div>}
+            {proj.lastIndexed && <div>Last Indexed: {new Date(proj.lastIndexed).toLocaleString()}</div>}
+            <button
+              style={{ marginRight: '0.5rem', marginTop: '0.5rem' }}
+              onClick={() => handleSetActive(proj.path)}
+              disabled={settingActive === proj.path}
+            >
+              {settingActive === proj.path ? 'Setting...' : 'Set Active'}
+            </button>
+            <button
+              onClick={() => handleDelete(proj.name)}
+              disabled={deleting === proj.name}
+            >
+              {deleting === proj.name ? 'Removing...' : 'Remove'}
+            </button>
+          </li>
+        ))}
+      </ul>
+      <p style={{ fontStyle: 'italic', marginTop: '1rem' }}>
+        All open projects are continuously indexed in the background.
+        The <span style={{ fontWeight: 'bold' }}>active project</span> is used for document uploads, queries, and graph visualization.
+        You can switch the active project at any time.
+      </p>
+    </div>
   );
 };
 

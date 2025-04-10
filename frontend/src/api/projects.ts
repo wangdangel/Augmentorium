@@ -14,10 +14,20 @@ export async function fetchProjects(): Promise<Project[]> {
       return [];
     }
     const data = await res.json();
-    if (!data || !Array.isArray(data.projects)) {
+    if (!data || !data.projects) {
       return [];
     }
-    return data.projects;
+    if (Array.isArray(data.projects)) {
+      return data.projects;
+    }
+    // If projects is an object/dictionary, convert to array
+    if (typeof data.projects === 'object') {
+      return Object.entries(data.projects).map(([name, path]) => ({
+        name,
+        path: path as string,
+      }));
+    }
+    return [];
   } catch (e) {
     console.error('Error fetching projects:', e);
     return [];

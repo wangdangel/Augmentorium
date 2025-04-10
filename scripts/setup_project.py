@@ -38,6 +38,50 @@ def main():
     success = config_manager.initialize_project(args.project_path, args.name)
     
     if success:
+        # Additional setup: create .augmentorium and initialize graph DB
+        try:
+            project_root = os.path.abspath(args.project_path)
+            augmentorium_dir = os.path.join(project_root, ".augmentorium")
+            os.makedirs(augmentorium_dir, exist_ok=True)
+
+            # Vector DB directory (if not already created)
+            vector_db_dir = os.path.join(augmentorium_dir, "chroma_db")
+            os.makedirs(vector_db_dir, exist_ok=True)
+
+            # Graph DB file
+            graph_db_path = os.path.join(augmentorium_dir, "code_graph.db")
+            if not os.path.exists(graph_db_path):
+                import sqlite3
+                conn = sqlite3.connect(graph_db_path)
+                c = conn.cursor()
+                c.execute("""
+                CREATE TABLE IF NOT EXISTS nodes (
+                    id TEXT PRIMARY KEY,
+                    type TEXT,
+                    name TEXT,
+                    file_path TEXT,
+                    start_line INTEGER,
+                    end_line INTEGER,
+                    metadata TEXT
+                )
+                """)
+                c.execute("""
+                CREATE TABLE IF NOT EXISTS edges (
+                    source_id TEXT,
+                    target_id TEXT,
+                    relation_type TEXT,
+                    metadata TEXT
+                )
+                """)
+                c.execute("CREATE INDEX IF NOT EXISTS idx_edges_source ON edges(source_id)")
+                c.execute("CREATE INDEX IF NOT EXISTS idx_edges_target ON edges(target_id)")
+                c.execute("CREATE INDEX IF NOT EXISTS idx_edges_relation ON edges(relation_type)")
+                conn.commit()
+                conn.close()
+                logger.info(f"Graph database initialized at {graph_db_path}")
+        except Exception as e:
+            logger.warning(f"Failed to initialize .augmentorium or graph DB: {e}")
+
         logger.info("Project setup complete!")
         print(f"Project setup complete: {args.project_path}")
         print("You can now run the indexer and server to index and query this project.")

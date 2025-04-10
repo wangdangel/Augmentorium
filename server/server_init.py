@@ -54,7 +54,7 @@ def start_api_server(
         ollama_config = config.global_config.get("ollama", {})
         embedder = OllamaEmbedder(
             base_url=ollama_config.get("base_url", "http://localhost:11434"),
-            model=ollama_config.get("embedding_model", "codellama")
+            model=ollama_config.get("embedding_model", "codellama:34b")
         )
         
         # Initialize query processor and enrichers

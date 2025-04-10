@@ -1,56 +1,55 @@
-import React, { useRef, useEffect } from 'react';
-// Corrected import: Import from the 'react-force-graph-2d' package
+import React, { useRef, useEffect, useState } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 
-/**
- * TODO:
- * - Replace mock data with backend API data.
- * - Add filters, expand/collapse, tooltips.
- * - Style nodes/edges based on type/status.
- */
-
-const mockData = {
-  nodes: [
-    { id: 'file1.py', group: 'file' },
-    { id: 'file2.py', group: 'file' },
-    { id: 'ClassA', group: 'class' },
-    { id: 'func_a', group: 'function' },
-    { id: 'func_b', group: 'function' },
-  ],
-  links: [
-    { source: 'file1.py', target: 'ClassA' },
-    { source: 'ClassA', target: 'func_a' },
-    { source: 'file2.py', target: 'func_b' },
-    { source: 'func_a', target: 'func_b' },
-  ],
-};
+interface GraphData {
+  nodes: any[];
+  links: any[];
+}
 
 const GraphPage: React.FC = () => {
-  // Consider using a more specific type for the ref if available from the library's types
   const fgRef = useRef<any>();
+  const [graphData, setGraphData] = useState<GraphData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchGraph = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch('/api/graph');
+        if (!res.ok) throw new Error('Failed to fetch graph data');
+        const data = await res.json();
+        setGraphData(data);
+      } catch (e: any) {
+        console.error(e);
+        setError(e.message || 'Error fetching graph data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchGraph();
+  }, []);
 
   useEffect(() => {
     if (fgRef.current) {
-      // Access d3Force method
       fgRef.current.d3Force('charge').strength(-200);
-      // Example: Zoom to fit nodes after initial render
-      // fgRef.current.zoomToFit(400, 50); // Adjust duration and padding as needed
     }
-  }, []);
+  }, [graphData]);
 
   return (
-    <div style={{ height: '80vh', border: '1px solid lightgray' }}> {/* Added border for visibility */}
+    <div style={{ height: '80vh', border: '1px solid lightgray' }}>
       <h1>Code Relationships</h1>
+      {loading && <p>Loading graph...</p>}
+      {error && <p style={{ color: 'red' }}>{error}</p>}
       <ForceGraph2D
         ref={fgRef}
-        graphData={mockData}
+        graphData={graphData || { nodes: [], links: [] }}
         nodeAutoColorBy="group"
         nodeLabel="id"
         linkDirectionalArrowLength={4}
         linkDirectionalArrowRelPos={1}
-      // Optional: Set width/height explicitly if needed, though container style often suffices
-      // width={/* calculate width */}
-      // height={/* calculate height */}
       />
     </div>
   );

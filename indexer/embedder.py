@@ -8,23 +8,50 @@ import time
 import logging
 import requests
 import sys
+import yaml
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Optional, Any, Set, Tuple, Iterator, Union
 from tqdm import tqdm
 
 from indexer.chunker import CodeChunk
 from utils.db_utils import VectorDB
+from utils.graph_db import get_connection, insert_or_update_node, insert_edge
 
 logger = logging.getLogger(__name__)
+
+def load_ollama_config(config_path: str = os.path.join(os.path.dirname(__file__), "..", "config.yaml")) -> dict:
+    """
+    Load Ollama configuration from YAML file.
+    Returns dict with keys: base_url, embedding_model, embedding_batch_size
+    """
+    try:
+        with open(config_path, "r") as f:
+            config = yaml.safe_load(f)
+        ollama_cfg = config.get("ollama", {})
+        return {
+            "base_url": ollama_cfg.get("base_url", "http://localhost:11434"),
+            "embedding_model": ollama_cfg.get("embedding_model", "codellama"),
+            "embedding_batch_size": ollama_cfg.get("embedding_batch_size", 10)
+        }
+    except Exception as e:
+        logger.warning(f"Failed to load Ollama config from {config_path}: {e}")
+        # Fallback defaults
+        return {
+            "base_url": "http://localhost:11434",
+            "embedding_model": "codellama",
+            "embedding_batch_size": 10
+        }
+
+ollama_config = load_ollama_config()
 
 class OllamaEmbedder:
     """Embedder using Ollama API"""
     
     def __init__(
         self,
-        base_url: str = "http://localhost:11434",
-        model: str = "codellama",
-        batch_size: int = 10,
+        base_url: str = ollama_config["base_url"],
+        model: str = ollama_config["embedding_model"],
+        batch_size: int = ollama_config["embedding_batch_size"],
         max_retries: int = 3,
         retry_delay: float = 1.0,
         warmup_timeout: float = 120.0,
@@ -338,10 +365,7 @@ class ChunkProcessor:
                 sanitized_meta = {}
                 for k, v in chunk.metadata.items():
                     if isinstance(v, list):
-                        if len(v) == 0:
-                            sanitized_meta[k] = ""
-                        else:
-                            sanitized_meta[k] = ", ".join(str(item) for item in v)
+                        sanitized_meta[k] = ", ".join(str(item) for item in v)
                     elif v is None:
                         sanitized_meta[k] = ""
                     else:

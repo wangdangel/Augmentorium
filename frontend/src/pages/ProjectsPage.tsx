@@ -14,9 +14,17 @@ const ProjectsPage: React.FC = () => {
     setError(null);
     try {
       const data = await fetchProjects();
-      setProjects(data);
       const active = await getActiveProject();
       setActiveProjectName(active?.name || null);
+
+      let mergedProjects = data;
+      if (active) {
+        const exists = data.some((p) => p.name === active.name || p.path === active.path);
+        if (!exists) {
+          mergedProjects = [...data, active];
+        }
+      }
+      setProjects(mergedProjects);
     } catch (e) {
       console.error(e);
       setError('Failed to load projects');
