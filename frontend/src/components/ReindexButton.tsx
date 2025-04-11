@@ -5,6 +5,10 @@ const ReindexButton: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   const handleReindex = async () => {
+    const confirmed = window.confirm('Are you sure you want to reindex the entire project? This may take a long time.');
+    if (!confirmed) {
+      return;
+    }
     setLoading(true);
     const success = await reindexProject();
     if (success) {

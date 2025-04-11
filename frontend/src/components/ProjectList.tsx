@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Project } from '../api/projects';
+import { Project, reindexSpecificProject } from '../api/projects';
 
 interface ProjectListProps {
   projects: Project[];
@@ -11,6 +11,15 @@ interface ProjectListProps {
 const ProjectList: React.FC<ProjectListProps> = ({ projects, activeProjectName, onRemove, onSetActive }) => {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [settingActive, setSettingActive] = useState<string | null>(null);
+
+  const activeStyle: React.CSSProperties = {
+    border: '3px solid #4CAF50',
+    backgroundColor: '#e8f5e9',
+    color: '#000',
+    borderRadius: '8px',
+    padding: '0.5rem',
+    boxShadow: '0 0 10px rgba(76, 175, 80, 0.3)',
+  };
 
   const handleDelete = async (name: string) => {
     const confirmed = window.confirm(`Are you sure you want to remove project "${name}"?`);
@@ -35,16 +44,24 @@ const ProjectList: React.FC<ProjectListProps> = ({ projects, activeProjectName, 
   return (
     <div>
       <ul>
-        {projects.map((proj) => (
-          <li key={proj.name} style={{ marginBottom: '1rem' }}>
-            <div>
-              <strong>{proj.name}</strong>{' '}
-              {activeProjectName === proj.name && (
-                <span style={{ color: 'green', fontWeight: 'bold' }}>
-                  (Active Project)
-                </span>
-              )}
-            </div>
+        {projects.map((proj) => {
+          const isActive = activeProjectName === proj.name;
+          return (
+            <li
+              key={proj.name}
+              style={{
+                marginBottom: '1rem',
+                ...(isActive ? activeStyle : {}),
+              }}
+            >
+              <div>
+                <strong>{proj.name}</strong>{' '}
+                {isActive && (
+                  <span style={{ color: 'green', fontWeight: 'bold' }}>
+                    (Active Project)
+                  </span>
+                )}
+              </div>
             <div>Path: {proj.path}</div>
             {proj.status && <div>Status: {proj.status}</div>}
             {proj.size !== undefined && <div>Size: {(proj.size / (1024 * 1024)).toFixed(2)} MB</div>}
@@ -57,13 +74,29 @@ const ProjectList: React.FC<ProjectListProps> = ({ projects, activeProjectName, 
               {settingActive === proj.name ? 'Setting...' : 'Set Active'}
             </button>
             <button
+              style={{ marginRight: '0.5rem', marginTop: '0.5rem' }}
+              onClick={async () => {
+                const confirmed = window.confirm(`Reindex project "${proj.name}"? This may take a while.`);
+                if (!confirmed) return;
+                const success = await reindexSpecificProject(proj.name);
+                if (success) {
+                  alert('Reindex triggered successfully');
+                } else {
+                  alert('Failed to trigger reindex');
+                }
+              }}
+            >
+              Reindex
+            </button>
+            <button
               onClick={() => handleDelete(proj.name)}
               disabled={deleting === proj.name}
             >
               {deleting === proj.name ? 'Removing...' : 'Remove'}
             </button>
           </li>
-        ))}
+          );
+        })}
       </ul>
       <p style={{ fontStyle: 'italic', marginTop: '1rem' }}>
         All open projects are continuously indexed in the background.

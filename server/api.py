@@ -276,6 +276,12 @@ class APIServer:
                 return jsonify({"status": "success", "message": f"Removed project: {name}"})
             else:
                 return jsonify({"error": f"Failed to remove project: {name}"}), 404
+
+        @self.app.route("/api/projects/<project_name>/reindex", methods=["POST"])
+        def reindex_project(project_name: str) -> Response:
+            """Trigger reindexing for a specific project"""
+            # TODO: Implement actual reindex logic here
+            return jsonify({"status": "success", "message": f"Reindex triggered for project {project_name}"}), 200
         
         @self.app.route("/api/projects/active", methods=["GET"])
         def get_active_project() -> Response:

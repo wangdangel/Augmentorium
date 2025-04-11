@@ -3,7 +3,6 @@ import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
 import './App.css';
 
 import ProjectsPage from './pages/ProjectsPage';
-import DocumentsPage from './pages/DocumentsPage';
 import QueryPage from './pages/QueryPage';
 import GraphPage from './pages/GraphPage';
 import SettingsPage from './pages/SettingsPage';
@@ -25,7 +24,6 @@ const App: React.FC = () => {
         <nav className="top-navbar">
           <ul>
             <li><NavLink to="/" end>Projects</NavLink></li>
-            <li><NavLink to="/documents">Documents</NavLink></li>
             <li><NavLink to="/query">Query</NavLink></li>
             <li><NavLink to="/graph">Graph</NavLink></li>
             <li><NavLink to="/settings">Settings</NavLink></li>
@@ -35,7 +33,6 @@ const App: React.FC = () => {
         <main className="main-content">
           <Routes>
             <Route path="/" element={<ProjectsPage />} />
-            <Route path="/documents" element={<DocumentsPage />} />
             <Route path="/query" element={<QueryPage />} />
             <Route path="/graph" element={<GraphPage />} />
             <Route path="/settings" element={<SettingsPage />} />

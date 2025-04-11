@@ -73,3 +73,10 @@ export async function setActiveProject(name: string): Promise<boolean> {
     return false;
   }
 }
+
+export async function reindexSpecificProject(projectName: string): Promise<boolean> {
+  const res = await fetch(`/api/projects/${encodeURIComponent(projectName)}/reindex`, {
+    method: 'POST',
+  });
+  return res.ok;
+}
