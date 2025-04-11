@@ -11,7 +11,7 @@ GLOBAL_CONFIG_DIR = os.path.join(HOME_DIR, ".augmentorium")
 DEFAULT_LOG_DIR = os.path.join(GLOBAL_CONFIG_DIR, "logs")
 
 # Project-specific directories
-PROJECT_CONFIG_DIR = ".augmentorium"
+PROJECT_CONFIG_DIR = ".Augmentorium"
 PROJECT_DB_DIR = "chroma"
 PROJECT_CACHE_DIR = "cache"
 PROJECT_METADATA_DIR = "metadata"

@@ -59,6 +59,21 @@ class APIServer:
             """Health check endpoint"""
             return jsonify({"status": "ok"})
         
+        # Global variable to store latest indexer status
+        self.indexer_status = {}
+
+        @self.app.route("/api/indexer_status", methods=["POST"])
+        def update_indexer_status() -> Response:
+            """Receive status update from indexer"""
+            try:
+                data = request.json
+                if not data or "projects" not in data:
+                    return jsonify({"error": "Invalid status update"}), 400
+                self.indexer_status = data
+                return jsonify({"status": "success"})
+            except Exception as e:
+                return jsonify({"error": str(e)}), 500
+
         @self.app.route("/api/projects", methods=["GET"])
         def get_projects() -> Response:
             """Get list of projects with metadata"""
@@ -75,8 +90,19 @@ class APIServer:
                             pass
                 return total
 
+            print("DEBUG: self.config_manager.global_config =", self.config_manager.global_config)
             projects_dict = self.config_manager.get_all_projects()
+            print("DEBUG: projects_dict =", projects_dict)
             projects_list = []
+
+            # Build a lookup from indexer status
+            indexer_status_map = {}
+            try:
+                for p in self.indexer_status.get("projects", []):
+                    indexer_status_map[p.get("path")] = p
+            except Exception:
+                pass
+
             for name, path in projects_dict.items():
                 size = 0
                 try:
@@ -84,16 +110,19 @@ class APIServer:
                 except Exception:
                     pass
 
-                # TODO: Replace with real status and lastIndexed
+                status_info = indexer_status_map.get(path, {})
+
                 project_info = {
                     "name": name,
                     "path": path,
-                    "status": "idle",
-                    "size": size,
-                    "lastIndexed": None
+                    "status": status_info.get("status", "idle"),
+                    "size": status_info.get("size", size),
+                    "lastIndexed": status_info.get("lastIndexed"),
+                    "error": status_info.get("error")
                 }
                 projects_list.append(project_info)
 
+            print("DEBUG: projects_list =", projects_list)
             return jsonify({"projects": projects_list})
         
         @self.app.route("/api/projects", methods=["POST"])
@@ -106,14 +135,136 @@ class APIServer:
             
             project_path = data["path"]
             project_name = data.get("name")
-            
-            # Add project
-            success = self.config_manager.add_project(project_path, project_name)
-            
-            if success:
-                return jsonify({"status": "success", "message": f"Added project: {project_path}"})
+
+            # Sanitize project_path: trim and remove surrounding quotes
+            cleaned_path = project_path.strip().strip('"').strip("'")
+
+            # Reject if suspicious
+            if not cleaned_path or '"' in cleaned_path or "'" in cleaned_path:
+                return jsonify({"error": "Invalid project path"}), 400
+
+            # Initialize or add project
+            if not os.path.exists(cleaned_path):
+                success = self.config_manager.initialize_project(cleaned_path, project_name)
             else:
-                return jsonify({"error": f"Failed to add project: {project_path}"}), 500
+                # Always append to project registry
+                try:
+                    projects = self.config_manager.get_all_projects()
+                    # Avoid duplicates
+                    if cleaned_path not in projects.values():
+                        # Use provided name or folder name
+                        base_name = project_name or os.path.basename(cleaned_path)
+                        name_to_use = base_name
+                        suffix = 1
+                        # Ensure unique name
+                        while name_to_use in projects and projects[name_to_use] != cleaned_path:
+                            name_to_use = f"{base_name}_{suffix}"
+                            suffix += 1
+                        projects[name_to_use] = cleaned_path
+                        self.config_manager.global_config["projects"] = projects
+                        self.config_manager._save_global_config()
+                    success = True
+                except Exception:
+                    success = False
+
+            response = {
+                "status": "success" if success else "error",
+                "message": "",
+                "details": {
+                    "project_initialized": success,
+                    "graph_db_initialized": False,
+                    "warnings": [],
+                    "errors": []
+                }
+            }
+
+            if not success:
+                response["status"] = "error"
+                response["message"] = f"Failed to add project: {cleaned_path}"
+                return jsonify(response), 500
+
+            # Initialize graph database and required folders
+            try:
+                from utils.graph_db import initialize_graph_db
+                import os as _os
+
+                augmentorium_dir = _os.path.join(cleaned_path, ".Augmentorium")
+                _os.makedirs(augmentorium_dir, exist_ok=True)
+
+                # Graph DB
+                graph_db_path = _os.path.join(augmentorium_dir, "code_graph.db")
+                initialize_graph_db(graph_db_path)
+                response["details"]["graph_db_initialized"] = True
+
+                # Vector DB folder
+                chroma_dir = _os.path.join(augmentorium_dir, "chroma")
+                try:
+                    _os.makedirs(chroma_dir, exist_ok=True)
+                    response["details"]["chroma_dir_created"] = True
+                except Exception as e:
+                    response["details"]["chroma_dir_created"] = False
+                    response["details"]["warnings"].append(f"Failed to create chroma dir: {e}")
+
+                # Cache folder
+                cache_dir = _os.path.join(augmentorium_dir, "cache")
+                try:
+                    _os.makedirs(cache_dir, exist_ok=True)
+                    response["details"]["cache_dir_created"] = True
+                except Exception as e:
+                    response["details"]["cache_dir_created"] = False
+                    response["details"]["warnings"].append(f"Failed to create cache dir: {e}")
+
+                # Metadata folder
+                metadata_dir = _os.path.join(augmentorium_dir, "metadata")
+                try:
+                    _os.makedirs(metadata_dir, exist_ok=True)
+                    response["details"]["metadata_dir_created"] = True
+                except Exception as e:
+                    response["details"]["metadata_dir_created"] = False
+                    response["details"]["warnings"].append(f"Failed to create metadata dir: {e}")
+
+                # Chroma DB folder
+                chroma_db_dir = _os.path.join(augmentorium_dir, "chroma_db")
+                try:
+                    _os.makedirs(chroma_db_dir, exist_ok=True)
+                    response["details"]["chroma_db_dir_created"] = True
+                except Exception as e:
+                    response["details"]["chroma_db_dir_created"] = False
+                    response["details"]["warnings"].append(f"Failed to create chroma_db dir: {e}")
+
+                # Config YAML
+                config_yaml_path = _os.path.join(augmentorium_dir, "config.yaml")
+                try:
+                    import yaml as _yaml
+                    config_data = None
+                    if not _os.path.exists(config_yaml_path):
+                        from config.defaults import DEFAULT_PROJECT_CONFIG
+                        config_data = DEFAULT_PROJECT_CONFIG.copy()
+                        response["details"]["config_yaml_created"] = True
+                    else:
+                        with open(config_yaml_path, "r") as f:
+                            config_data = _yaml.safe_load(f) or {}
+                        response["details"]["config_yaml_created"] = False
+
+                    # Set project name if provided
+                    if project_name:
+                        if "project" not in config_data:
+                            config_data["project"] = {}
+                        config_data["project"]["name"] = project_name
+
+                    with open(config_yaml_path, "w") as f:
+                        _yaml.dump(config_data, f, default_flow_style=False)
+
+                except Exception as e:
+                    response["details"].setdefault("warnings", []).append(f"Failed to create/update config.yaml: {e}")
+
+                response["message"] = f"Project fully initialized at {cleaned_path}"
+                return jsonify(response)
+            except Exception as e:
+                response["status"] = "error"
+                response["message"] = f"Project created but failed to initialize graph DB or folders: {e}"
+                response["details"]["errors"].append(str(e))
+                return jsonify(response), 500
         
         @self.app.route("/api/projects/<name>", methods=["DELETE"])
         def remove_project(name: str) -> Response:
@@ -129,29 +280,33 @@ class APIServer:
         @self.app.route("/api/projects/active", methods=["GET"])
         def get_active_project() -> Response:
             """Get active project"""
-            # For now, just return the first project as active
+            active_name = self.config_manager.get_active_project_name()
             projects = self.config_manager.get_all_projects()
-            active_project = None
-            if projects:
-                active_project = list(projects.values())[0]
-            
-            if active_project:
-                return jsonify({"project_path": active_project})
+            if active_name and active_name in projects:
+                return jsonify({
+                    "project": {
+                        "name": active_name,
+                        "path": projects[active_name]
+                    }
+                })
             else:
-                return jsonify({"error": "No active project"}), 404
-        
+                return jsonify({"project": None})
+
         @self.app.route("/api/projects/active", methods=["POST"])
         def set_active_project() -> Response:
             """Set active project"""
             data = request.json
-            
-            if not data or "path" not in data:
-                return jsonify({"error": "Missing project path"}), 400
-            
-            project_path = data["path"]
-            
-            # For now, just acknowledge the request (no persistent active project state)
-            return jsonify({"status": "success", "message": f"Set active project: {project_path}"})
+
+            if not data or "name" not in data:
+                return jsonify({"error": "Missing project name"}), 400
+
+            project_name = data["name"]
+            projects = self.config_manager.get_all_projects()
+            if project_name not in projects:
+                return jsonify({"error": "Project not found"}), 404
+
+            self.config_manager.set_active_project_name(project_name)
+            return jsonify({"status": "success", "message": f"Set active project: {project_name}"})
         
         @self.app.route("/api/query", methods=["POST"])
         def process_query() -> Response:

@@ -35,7 +35,21 @@ class ConfigManager:
         # Always ensure global config dir exists
         self._ensure_global_config_dir()
 
-        # Determine effective config file
+        # --- Always load the global config file first ---
+        if os.path.exists(self.global_config_path):
+            try:
+                with open(self.global_config_path, 'r') as f:
+                    loaded_global = yaml.safe_load(f)
+                    if loaded_global:
+                        self._deep_update(self.global_config, loaded_global)
+                        logger.info(f"Loaded global config from {self.global_config_path}")
+            except Exception as e:
+                logger.warning(f"Failed to load global config from {self.global_config_path}: {e}")
+        else:
+            # Save default global config if missing
+            self._save_global_config()
+
+        # --- Then merge in the local or provided config if it exists ---
         effective_config_path = None
 
         if config_path and os.path.exists(config_path):
@@ -50,13 +64,17 @@ class ConfigManager:
                 with open(effective_config_path, 'r') as f:
                     loaded_config = yaml.safe_load(f)
                     if loaded_config:
-                        self.global_config = loaded_config  # REPLACE global config entirely
+                        # Merge overrides, but preserve existing 'projects' if missing in override
+                        if "projects" not in loaded_config:
+                            # preserve existing projects list
+                            preserved_projects = self.global_config.get("projects", {}).copy()
+                            self._deep_update(self.global_config, loaded_config)
+                            self.global_config["projects"] = preserved_projects
+                        else:
+                            self._deep_update(self.global_config, loaded_config)
                         logger.info(f"Loaded configuration from {effective_config_path}")
             except Exception as e:
                 logger.warning(f"Failed to load config from {effective_config_path}: {e}")
-        else:
-            # Fallback: load global config file if it exists
-            self._load_global_config()
 
         # Initialize project registry inside global config
         if "projects" not in self.global_config:
@@ -67,7 +85,10 @@ class ConfigManager:
     def _ensure_global_config_dir(self) -> None:
         """Ensure global configuration directory exists"""
         os.makedirs(GLOBAL_CONFIG_DIR, exist_ok=True)
-        os.makedirs(self.global_config["general"]["log_dir"], exist_ok=True)
+        # Expand ~ in log_dir path
+        log_dir = os.path.expanduser(self.global_config["general"]["log_dir"])
+        self.global_config["general"]["log_dir"] = log_dir
+        os.makedirs(log_dir, exist_ok=True)
     
     def _load_global_config(self) -> None:
         """Load global configuration from file if it exists"""
@@ -86,6 +107,7 @@ class ConfigManager:
     def _save_global_config(self) -> None:
         """Save global configuration to file"""
         try:
+            print("DEBUG: Saving global config with projects =", self.global_config.get("projects"))
             with open(self.global_config_path, 'w') as f:
                 yaml.dump(self.global_config, f, default_flow_style=False)
         except Exception as e:
@@ -167,6 +189,25 @@ class ConfigManager:
             Dict[str, str]: Dictionary of project names to paths
         """
         return self.projects
+
+    def get_active_project_name(self) -> Optional[str]:
+        """
+        Get the name of the active project
+        
+        Returns:
+            str or None
+        """
+        return self.global_config.get("active_project")
+
+    def set_active_project_name(self, project_name: str) -> None:
+        """
+        Set the active project name and save to global config
+        
+        Args:
+            project_name: Name of the project to set active
+        """
+        self.global_config["active_project"] = project_name
+        self._save_global_config()
     
     def get_project_config(self, project_path: str) -> Dict[str, Any]:
         """
@@ -307,6 +348,12 @@ class ConfigManager:
         """
         return os.path.join(project_path, PROJECT_CONFIG_DIR, "metadata")
     
+    def reload(self):
+        """
+        Reload the global configuration from disk.
+        """
+        self._load_global_config()
+
     @staticmethod
     def _deep_update(d: Dict, u: Dict) -> Dict:
         """

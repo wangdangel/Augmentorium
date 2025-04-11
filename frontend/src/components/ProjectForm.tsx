@@ -13,7 +13,8 @@ const ProjectForm: React.FC<ProjectFormProps> = ({ onAdd }) => {
     e.preventDefault();
     if (!path) return;
     setLoading(true);
-    const success = await onAdd(path, name);
+    const cleanedPath = path.trim().replace(/^["']|["']$/g, '');
+    const success = await onAdd(cleanedPath, name);
     if (success) {
       setPath('');
       setName('');

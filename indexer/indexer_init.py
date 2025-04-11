@@ -21,13 +21,29 @@ logger = logging.getLogger(__name__)
 
 class Indexer:
     """Main indexer for Augmentorium"""
-    
+
+    def close(self):
+        """Close all resources"""
+        try:
+            # Close vector DB if it has a close method
+            if hasattr(self.vector_db, "close"):
+                self.vector_db.close()
+        except Exception:
+            pass
+        # TODO: Close graph DB connections if persistent (currently opened per operation)
+        # TODO: Stop any file watchers if running
+        # Placeholder for future cleanup logic
+
     def __init__(
         self,
         config_manager: ConfigManager,
         project_path: str
         # Remove file_watcher_service reference
     ):
+        # Status tracking
+        self.status = "idle"
+        self.last_indexed = None
+        self.error = None
         """
         Initialize indexer
         
@@ -258,6 +274,8 @@ class Indexer:
             int: Number of files processed
         """
         try:
+            self.status = "indexing"
+            self.error = None
             self.logger.info(f"Starting full index for project: {self.project_name}")
 
             # Call the static scan_project method directly from FileWatcherService
@@ -297,10 +315,14 @@ class Indexer:
             
             self.logger.info(f"Full index completed for project: {self.project_name}")
             self.logger.info(f"Processed {processed_count} files, skipped {skipped_count} unchanged files")
-            
+            self.status = "idle"
+            import datetime as _datetime
+            self.last_indexed = _datetime.datetime.utcnow().isoformat() + "Z"
             return processed_count
         except Exception as e:
             self.logger.error(f"Failed to perform full index: {e}")
+            self.status = "error"
+            self.error = str(e)
             return 0
 
 
@@ -402,6 +424,12 @@ class IndexerService:
             return False
         
         try:
+            # Close resources
+            try:
+                self.indexers[project_path].close()
+            except Exception:
+                pass
+
             # Remove from indexers
             del self.indexers[project_path]
             
@@ -450,6 +478,10 @@ class IndexerService:
         # Start check thread
         self.check_thread = threading.Thread(target=self._check_loop, daemon=True)
         self.check_thread.start()
+
+        # Start status reporting thread
+        self.status_thread = threading.Thread(target=self._status_loop, daemon=True)
+        self.status_thread.start()
         
         # Perform initial indexing for all projects
         for project_path, indexer in self.indexers.items():
@@ -457,18 +489,86 @@ class IndexerService:
                 target=indexer.full_index,
                 daemon=True
             ).start()
+
+
+    def _status_loop(self):
+        """Send status updates to backend every 5 seconds"""
+        import time as _time
+        import requests as _requests
+        import datetime as _datetime
+
+        while self.running:
+            try:
+                projects_status = []
+                for path, indexer in self.indexers.items():
+                    import os as _os
+                    def get_size(start_path):
+                        total_size = 0
+                        for dirpath, dirnames, filenames in _os.walk(start_path):
+                            for f in filenames:
+                                fp = _os.path.join(dirpath, f)
+                                try:
+                                    total_size += _os.path.getsize(fp)
+                                except Exception:
+                                    pass
+                        return total_size
+
+                    status = {
+                        "name": indexer.project_name,
+                        "path": path,
+                        "status": indexer.status,
+                        "lastIndexed": indexer.last_indexed,
+                        "size": get_size(path),
+                        "error": indexer.error
+                    }
+                    projects_status.append(status)
+
+                payload = {
+                    "indexer_id": "indexer-1",
+                    "timestamp": _datetime.datetime.utcnow().isoformat() + "Z",
+                    "projects": projects_status
+                }
+
+                # Send POST to backend API
+                _requests.post("http://localhost:6655/api/indexer_status", json=payload, timeout=2)
+            except Exception:
+                pass  # Ignore errors for now
+
+            _time.sleep(5)
     
     def _check_loop(self) -> None:
         """Check loop for periodic tasks"""
+        import time as _time
         while self.running:
             try:
-                # Perform periodic tasks here if needed
-                pass
+                # Reload config from disk to get latest projects
+                self.config_manager.reload()
+
+                # Reload config and sync projects every 15 seconds
+                projects_in_config = self.config_manager.get_all_projects()
+                current_paths = set(self.indexers.keys())
+                config_paths = set(projects_in_config.values())
+
+                logger.debug(f"[Indexer Check Loop] Current indexer paths: {current_paths}")
+                logger.debug(f"[Indexer Check Loop] Config project paths: {config_paths}")
+
+                new_projects = config_paths - current_paths
+                logger.debug(f"[Indexer Check Loop] New projects to add: {new_projects}")
+
+                # Add new projects
+                for path in new_projects:
+                    logger.info(f"Detected new project in config: {path}")
+                    self.add_project(path)
+
+                # Optionally, remove projects no longer in config
+                # for path in current_paths - config_paths:
+                #     logger.info(f"Removing project no longer in config: {path}")
+                #     self.remove_project(path)
+
             except Exception as e:
                 logger.error(f"Error in check loop: {e}")
             
-            # Sleep for a while
-            time.sleep(60)
+            _time.sleep(15)
     
     def stop(self) -> None:
         """Stop the indexer service"""

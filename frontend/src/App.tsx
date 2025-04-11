@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
 import './App.css';
 
@@ -10,6 +10,15 @@ import SettingsPage from './pages/SettingsPage';
 import MCPPage from './pages/MCPPage';
 
 const App: React.FC = () => {
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+      document.body.classList.add('dark-theme');
+    } else {
+      document.body.classList.remove('dark-theme');
+    }
+  }, []);
+
   return (
     <BrowserRouter>
       <div className="app-container">

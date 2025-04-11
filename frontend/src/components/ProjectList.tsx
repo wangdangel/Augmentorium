@@ -51,10 +51,10 @@ const ProjectList: React.FC<ProjectListProps> = ({ projects, activeProjectName, 
             {proj.lastIndexed && <div>Last Indexed: {new Date(proj.lastIndexed).toLocaleString()}</div>}
             <button
               style={{ marginRight: '0.5rem', marginTop: '0.5rem' }}
-              onClick={() => handleSetActive(proj.path)}
-              disabled={settingActive === proj.path}
+              onClick={() => handleSetActive(proj.name)}
+              disabled={settingActive === proj.name}
             >
-              {settingActive === proj.path ? 'Setting...' : 'Set Active'}
+              {settingActive === proj.name ? 'Setting...' : 'Set Active'}
             </button>
             <button
               onClick={() => handleDelete(proj.name)}

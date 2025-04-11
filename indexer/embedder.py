@@ -124,21 +124,10 @@ class OllamaEmbedder:
             else:
                 logger.info(f"Ollama server reachable. Model '{self.model}' is NOT installed. It will be downloaded on first use.")
         except Exception as e:
-            logger.warning(f"Could not verify Ollama server or model '{self.model}': {e}")
-            while True:
-                user_input = input("Ollama server is unreachable. Type 'c' to continue anyway, 'a' to continue with alternative embedder (no embeddings), or 'q' to quit: ").strip().lower()
-                if user_input == 'q':
-                    print("Exiting due to unreachable Ollama server.")
-                    sys.exit(1)
-                elif user_input == 'c':
-                    print("Continuing despite unreachable Ollama server.")
-                    break
-                elif user_input == 'a':
-                    print("Continuing with alternative embedder (embeddings will be disabled).")
-                    self.disabled = True
-                    break
-                else:
-                    print("Invalid input. Please enter 'c', 'a', or 'q'.")
+            logger.error(f"Could not verify Ollama server or model '{self.model}': {e}")
+            logger.error("Ollama server unreachable. Exiting indexer to avoid indexing without embeddings.")
+            print("ERROR: Ollama server unreachable. Please start Ollama or check your configuration.")
+            sys.exit(1)
 
     def get_embedding(self, text: str) -> Optional[List[float]]:
         """

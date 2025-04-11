@@ -61,12 +61,12 @@ export async function getActiveProject(): Promise<Project | null> {
   }
 }
 
-export async function setActiveProject(path: string): Promise<boolean> {
+export async function setActiveProject(name: string): Promise<boolean> {
   try {
     const res = await fetch('/api/projects/active', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path }),
+      body: JSON.stringify({ name }),
     });
     return res.ok;
   } catch {

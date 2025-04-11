@@ -44,3 +44,33 @@ def delete_node(conn, node_id):
 
 def delete_edges_for_node(conn, node_id):
     conn.execute("DELETE FROM edges WHERE source_id = ? OR target_id = ?", (node_id, node_id))
+
+
+def initialize_graph_db(db_path):
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS nodes (
+        id TEXT PRIMARY KEY,
+        type TEXT,
+        name TEXT,
+        file_path TEXT,
+        start_line INTEGER,
+        end_line INTEGER,
+        metadata TEXT
+    )
+    """)
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS edges (
+        source_id TEXT,
+        target_id TEXT,
+        relation_type TEXT,
+        metadata TEXT
+    )
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS idx_edges_source ON edges(source_id)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_edges_target ON edges(target_id)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_edges_relation ON edges(relation_type)")
+    conn.commit()
+    conn.close()

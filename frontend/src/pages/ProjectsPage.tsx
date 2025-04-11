@@ -53,8 +53,8 @@ const ProjectsPage: React.FC = () => {
     return success;
   };
 
-  const handleSetActive = async (path: string) => {
-    const success = await setActiveProject(path);
+  const handleSetActive = async (name: string) => {
+    const success = await setActiveProject(name);
     if (success) {
       await loadProjects();
     }
