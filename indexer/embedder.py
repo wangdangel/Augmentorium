@@ -12,6 +12,7 @@ import yaml
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Optional, Any, Set, Tuple, Iterator, Union
 from tqdm import tqdm
+from utils.text_preprocessing import preprocess_text
 
 from indexer.chunker import CodeChunk
 from utils.db_utils import VectorDB
@@ -285,7 +286,8 @@ class ChunkEmbedder:
         """
         try:
             # Get texts to embed
-            texts = [chunk.text for chunk in chunks]
+            # Preprocess each chunk's text before embedding
+            texts = [preprocess_text(chunk.text) for chunk in chunks]
             
             # Get embeddings
             embeddings = self.ollama_embedder.get_embeddings_batch(texts)
