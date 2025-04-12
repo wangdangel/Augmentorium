@@ -39,17 +39,6 @@ export async function uploadDocument(file: File): Promise<boolean> {
   }
 }
 
-export async function reindexProject(): Promise<boolean> {
-  try {
-    const res = await fetch('/api/documents/reindex', {
-      method: 'POST',
-    });
-    return res.ok;
-  } catch (e) {
-    console.error('Error triggering reindex:', e);
-    return false;
-  }
-}
 
 export async function reindexDocument(docId: string): Promise<boolean> {
   try {

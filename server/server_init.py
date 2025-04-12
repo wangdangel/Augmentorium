@@ -12,6 +12,7 @@ from server.api import APIServer
 from server.query import QueryProcessor, RelationshipEnricher, ContextBuilder
 from utils.db_utils import VectorDB
 from indexer.embedder import OllamaEmbedder
+from utils.project_db_mapping import build_project_db_mapping, get_db_paths_for_project
 
 logger = logging.getLogger(__name__)
 
@@ -38,30 +39,36 @@ def start_api_server(
         server_config = config.config.get("server", {})
         host = server_config.get("host", "localhost")
         
-        # Setup active project database
-        db_path = None
-        active_project_name = config.get_active_project_name()
+        # Build project database mapping and select active project dbs
+        project_db_mapping = build_project_db_mapping(config)
+        # Determine which project to use as active
         if active_project:
-            db_path = config.get_db_path(active_project)
+            db_paths = get_db_paths_for_project(project_db_mapping, active_project)
+            active_project_id = active_project
         else:
-            projects = config.get_all_projects()
-            if projects:
-                first_project_name = next(iter(projects))
-                db_path = config.get_db_path(first_project_name)
-        
-        vector_db = VectorDB(db_path) if db_path else None
-        
-        # Initialize embedder
+            active_project_name = config.get_active_project_name()
+            db_paths = get_db_paths_for_project(project_db_mapping, active_project_name)
+            active_project_id = active_project_name
+        if not db_paths:
+            logger.warning("No valid project database paths found for the active project. Starting API server in 'no active project' mode.")
+            db_paths = None
+        if db_paths:
+            vector_db = VectorDB(db_paths["chroma_db"])
+            graph_db_path = db_paths["code_graph_db"]
+        else:
+            vector_db = None
+            graph_db_path = None
+
+        # Initialize embedder (not project-dependent, always available)
         ollama_config = config.config.get("ollama", {})
         embedder = OllamaEmbedder(
             base_url=ollama_config.get("base_url"),
             model=ollama_config.get("embedding_model")
         )
-        
+
         # Initialize query processor and enrichers
         from server.query import QueryExpander
         query_expander = QueryExpander(ollama_embedder=embedder)
-        graph_db_path = config_manager.get_graph_db_path(project_path)
         query_processor = QueryProcessor(
             vector_db=vector_db,
             expander=query_expander,

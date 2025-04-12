@@ -29,7 +29,8 @@ logger = logging.getLogger(__name__)
 
 # Define the root config file path (relative to where the script is run from)
 # Assuming this manager is used from the root directory 'k:/Documents/augmentorium'
-ROOT_CONFIG_PATH = "config.yaml"
+import os
+ROOT_CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config.yaml")
 
 # Default content for the project-specific ignore file
 DEFAULT_IGNORE_CONTENT = """# Folders and files to ignore for vector database indexing.
@@ -208,9 +209,8 @@ class ConfigManager:
         Returns:
             Dict[str, str]: Dictionary of project names to paths. Returns empty dict if none.
         """
-        if not isinstance(self.projects, dict):
-             return {}
-        return self.projects
+        projects = self.config.get("projects", {})
+        return projects if isinstance(projects, dict) else {}
 
     def get_active_project_name(self) -> Optional[str]:
         """
