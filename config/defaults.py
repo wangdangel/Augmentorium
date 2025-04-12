@@ -7,21 +7,22 @@ from pathlib import Path
 
 # Base directories
 HOME_DIR = str(Path.home())
-GLOBAL_CONFIG_DIR = os.path.join(HOME_DIR, ".augmentorium")
-DEFAULT_LOG_DIR = os.path.join(GLOBAL_CONFIG_DIR, "logs")
+# Note: GLOBAL_CONFIG_DIR removed. Log directory should be defined in root config.yaml.
+# We'll keep DEFAULT_LOG_DIR temporarily as a fallback if not specified in config.
+DEFAULT_LOG_DIR = os.path.join(HOME_DIR, ".augmentorium", "logs")
 
-# Project-specific directories
-PROJECT_CONFIG_DIR = ".Augmentorium"
-PROJECT_DB_DIR = "chroma"
-PROJECT_CACHE_DIR = "cache"
-PROJECT_METADATA_DIR = "metadata"
+# Project-specific directory name (used within project folders)
+PROJECT_INTERNAL_DIR_NAME = ".Augmentorium"
 
-# Default global configuration
-DEFAULT_GLOBAL_CONFIG = {
+# Default configuration structure (for the single root config.yaml)
+DEFAULT_CONFIG = {
     "general": {
-        "log_dir": DEFAULT_LOG_DIR,
+        "log_dir": DEFAULT_LOG_DIR, # Default log location if not set in config.yaml
         "log_level": "INFO",
     },
+    # Project registry - now part of the main config
+    "projects": {},
+    "active_project": None,
     "indexer": {
         "polling_interval": 1.0,  # seconds
         "max_workers": 4,
@@ -34,16 +35,15 @@ DEFAULT_GLOBAL_CONFIG = {
     },
     "ollama": {
         "base_url": "http://localhost:11434",
-        "embedding_model": "codellama",
+        "embedding_model": "bge-m3:latest",
         "embedding_batch_size": 10,
-    },
-}
-
-# Default project configuration
-DEFAULT_PROJECT_CONFIG = {
-    "project": {
-        "name": "default",
-        "exclude_patterns": [
+    }, # Added missing closing brace
+    "indexer": {
+        "polling_interval": 1.0,  # seconds
+        "max_workers": 4,
+        "hash_algorithm": "md5",
+        # Base ignore patterns - project .augmentoriumignore can add to these
+        "ignore_patterns": [
             "**/.git/**",
             "**/node_modules/**",
             "**/__pycache__/**",
@@ -58,9 +58,21 @@ DEFAULT_PROJECT_CONFIG = {
             "**/*.pyc",
             "**/*.pyo",
             "**/*.pyd",
+            "**/.augmentorium/**", # Ignore the internal directory itself
         ],
     },
-    "chunking": {
+    "server": {
+        "host": "localhost",
+        "port": 6655,
+        "cache_size": 100,
+    },
+    "ollama": {
+        "base_url": "http://localhost:11434",
+        "embedding_model": "bge-m3:latest",
+        "embedding_batch_size": 10,
+    }, 
+    # Removed duplicate indexer, server, ollama sections below
+    "chunking": { # Default chunking settings
         "max_chunk_size": 1024,
         "chunk_overlap": 128,
         "min_chunk_size": 64,

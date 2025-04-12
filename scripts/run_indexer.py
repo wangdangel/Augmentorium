@@ -39,29 +39,25 @@ def main():
     parser.add_argument("--ollama-url", default="http://localhost:11434", 
                         help="URL for the Ollama API")
     parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], 
-                      default="DEBUG", help="Set the logging level")
+                      default="INFO", help="Set the logging level")
     args = parser.parse_args()
     
-    # Setup logging
-    log_level = getattr(logging, args.log_level)
+    config_path = os.path.abspath(args.config or "../config.yaml")
+    # Load configuration first
+    config = ConfigManager(config_path)
+    
+    # Setup logging using config value
+    log_level = getattr(logging, config.config.get("general", {}).get("log_level", "INFO"))
     setup_logging(log_level)
     
     # Create logger
     logger = logging.getLogger(__name__)
     logger.info("Starting Augmentorium Indexer")
+    logger.debug(f"Using config path: {config_path}")
     
-    # Load configuration
-    config = ConfigManager(args.config)
-    
-    # Update Ollama URL 
-    if 'ollama' not in config.global_config:
-        config.global_config['ollama'] = {}
-    if args.ollama_url != "http://localhost:11434":
-        config.global_config['ollama']['base_url'] = args.ollama_url
-        logger.info(f"Using Ollama API at: {args.ollama_url}")
-    else:
-        logger.info(f"Using Ollama API from config: {config.global_config['ollama'].get('base_url')}")
-    
+    # Log the Ollama API URL being used from the config file
+    logger.info(f"Using Ollama API from config: {config.config['ollama'].get('base_url', 'Default missing')}")
+
     # Get project paths
     project_paths = args.projects.split(",") if args.projects else None
     

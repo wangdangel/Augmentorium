@@ -90,9 +90,9 @@ class APIServer:
                             pass
                 return total
 
-            print("DEBUG: self.config_manager.global_config =", self.config_manager.global_config)
+            # print("DEBUG: self.config_manager.global_config =", self.config_manager.config) # DEBUG: Changed to self.config if needed
             projects_dict = self.config_manager.get_all_projects()
-            print("DEBUG: projects_dict =", projects_dict)
+            # print("DEBUG: projects_dict =", projects_dict) # DEBUG
             projects_list = []
 
             # Build a lookup from indexer status
@@ -103,6 +103,8 @@ class APIServer:
             except Exception:
                 pass
 
+            if not projects_dict:
+                projects_dict = {}
             for name, path in projects_dict.items():
                 size = 0
                 try:
@@ -139,132 +141,59 @@ class APIServer:
             # Sanitize project_path: trim and remove surrounding quotes
             cleaned_path = project_path.strip().strip('"').strip("'")
 
-            # Reject if suspicious
+            # Reject if suspicious or empty
             if not cleaned_path or '"' in cleaned_path or "'" in cleaned_path:
-                return jsonify({"error": "Invalid project path"}), 400
+                return jsonify({"error": "Invalid project path format"}), 400
 
-            # Initialize or add project
-            if not os.path.exists(cleaned_path):
-                success = self.config_manager.initialize_project(cleaned_path, project_name)
-            else:
-                # Always append to project registry
-                try:
-                    projects = self.config_manager.get_all_projects()
-                    # Avoid duplicates
-                    if cleaned_path not in projects.values():
-                        # Use provided name or folder name
-                        base_name = project_name or os.path.basename(cleaned_path)
-                        name_to_use = base_name
-                        suffix = 1
-                        # Ensure unique name
-                        while name_to_use in projects and projects[name_to_use] != cleaned_path:
-                            name_to_use = f"{base_name}_{suffix}"
-                            suffix += 1
-                        projects[name_to_use] = cleaned_path
-                        self.config_manager.global_config["projects"] = projects
-                        self.config_manager._save_global_config()
-                    success = True
-                except Exception:
-                    success = False
-
-            response = {
-                "status": "success" if success else "error",
-                "message": "",
-                "details": {
-                    "project_initialized": success,
-                    "graph_db_initialized": False,
-                    "warnings": [],
-                    "errors": []
-                }
-            }
-
-            if not success:
-                response["status"] = "error"
-                response["message"] = f"Failed to add project: {cleaned_path}"
-                return jsonify(response), 500
-
-            # Initialize graph database and required folders
+            # Use ConfigManager to initialize the project.
+            # This handles directory creation, config file setup, and adding to global registry.
             try:
-                from utils.graph_db import initialize_graph_db
-                import os as _os
+                # Check if path is already registered to provide a more specific message
+                existing_projects = self.config_manager.get_all_projects()
+                # Safeguard against get_all_projects returning None unexpectedly
+                if existing_projects is None:
+                    logger.warning("ConfigManager.get_all_projects() returned None, treating as empty.")
+                    existing_projects = {}
 
-                augmentorium_dir = _os.path.join(cleaned_path, ".Augmentorium")
-                _os.makedirs(augmentorium_dir, exist_ok=True)
+                if cleaned_path in existing_projects.values():
+                    # Find the name associated with this path
+                    existing_name = next((name for name, path in existing_projects.items() if path == cleaned_path), None)
+                    message = f"Project path '{cleaned_path}' is already registered as '{existing_name}'."
+                    # Optionally, update the name if a new one was provided? For now, just report.
+                    # if project_name and project_name != existing_name:
+                    #     # Handle name update logic if desired
+                    #     pass
+                    return jsonify({"status": "success", "message": message})
 
-                # Graph DB
-                graph_db_path = _os.path.join(augmentorium_dir, "code_graph.db")
-                initialize_graph_db(graph_db_path)
-                response["details"]["graph_db_initialized"] = True
+                # If not registered, initialize it
+                success = self.config_manager.initialize_project(cleaned_path, project_name)
 
-                # Vector DB folder
-                chroma_dir = _os.path.join(augmentorium_dir, "chroma")
-                try:
-                    _os.makedirs(chroma_dir, exist_ok=True)
-                    response["details"]["chroma_dir_created"] = True
-                except Exception as e:
-                    response["details"]["chroma_dir_created"] = False
-                    response["details"]["warnings"].append(f"Failed to create chroma dir: {e}")
+                if success:
+                    # Get the final name assigned by initialize_project
+                    final_name = project_name or os.path.basename(cleaned_path) # Initial guess
+                    # Reload projects to get the potentially suffixed name
+                    updated_projects = self.config_manager.get_all_projects()
+                    # Safeguard against None again
+                    if updated_projects is None:
+                        logger.warning("ConfigManager.get_all_projects() returned None after initialization, treating as empty.")
+                        updated_projects = {}
+                    
+                    # Find the final name, using the initial guess as fallback
+                    final_name = next((name for name, path in updated_projects.items() if path == os.path.abspath(cleaned_path)), final_name)
 
-                # Cache folder
-                cache_dir = _os.path.join(augmentorium_dir, "cache")
-                try:
-                    _os.makedirs(cache_dir, exist_ok=True)
-                    response["details"]["cache_dir_created"] = True
-                except Exception as e:
-                    response["details"]["cache_dir_created"] = False
-                    response["details"]["warnings"].append(f"Failed to create cache dir: {e}")
+                    return jsonify({
+                        "status": "success",
+                        "message": f"Project '{final_name}' initialized successfully at '{cleaned_path}'."
+                    })
+                else:
+                    # initialize_project logs errors, return a generic failure message
+                    return jsonify({"status": "error", "message": f"Failed to initialize project at '{cleaned_path}'."}), 500
 
-                # Metadata folder
-                metadata_dir = _os.path.join(augmentorium_dir, "metadata")
-                try:
-                    _os.makedirs(metadata_dir, exist_ok=True)
-                    response["details"]["metadata_dir_created"] = True
-                except Exception as e:
-                    response["details"]["metadata_dir_created"] = False
-                    response["details"]["warnings"].append(f"Failed to create metadata dir: {e}")
-
-                # Chroma DB folder
-                chroma_db_dir = _os.path.join(augmentorium_dir, "chroma_db")
-                try:
-                    _os.makedirs(chroma_db_dir, exist_ok=True)
-                    response["details"]["chroma_db_dir_created"] = True
-                except Exception as e:
-                    response["details"]["chroma_db_dir_created"] = False
-                    response["details"]["warnings"].append(f"Failed to create chroma_db dir: {e}")
-
-                # Config YAML
-                config_yaml_path = _os.path.join(augmentorium_dir, "config.yaml")
-                try:
-                    import yaml as _yaml
-                    config_data = None
-                    if not _os.path.exists(config_yaml_path):
-                        from config.defaults import DEFAULT_PROJECT_CONFIG
-                        config_data = DEFAULT_PROJECT_CONFIG.copy()
-                        response["details"]["config_yaml_created"] = True
-                    else:
-                        with open(config_yaml_path, "r") as f:
-                            config_data = _yaml.safe_load(f) or {}
-                        response["details"]["config_yaml_created"] = False
-
-                    # Set project name if provided
-                    if project_name:
-                        if "project" not in config_data:
-                            config_data["project"] = {}
-                        config_data["project"]["name"] = project_name
-
-                    with open(config_yaml_path, "w") as f:
-                        _yaml.dump(config_data, f, default_flow_style=False)
-
-                except Exception as e:
-                    response["details"].setdefault("warnings", []).append(f"Failed to create/update config.yaml: {e}")
-
-                response["message"] = f"Project fully initialized at {cleaned_path}"
-                return jsonify(response)
+            except FileNotFoundError:
+                 return jsonify({"status": "error", "message": f"Project path '{cleaned_path}' does not exist or is not accessible."}), 400
             except Exception as e:
-                response["status"] = "error"
-                response["message"] = f"Project created but failed to initialize graph DB or folders: {e}"
-                response["details"]["errors"].append(str(e))
-                return jsonify(response), 500
+                logger.error(f"Error during project initialization for path '{cleaned_path}': {e}", exc_info=True)
+                return jsonify({"status": "error", "message": f"An unexpected error occurred: {e}"}), 500
         
         @self.app.route("/api/projects/<name>", methods=["DELETE"])
         def remove_project(name: str) -> Response:
@@ -382,9 +311,25 @@ class APIServer:
 
         @self.app.route("/api/documents/reindex", methods=["POST"])
         def reindex_all_documents() -> Response:
-            """Trigger reindexing of all documents"""
-            # TODO: Implement reindexing logic
-            return jsonify({"status": "success", "message": "Reindex all not yet implemented"}), 501
+            """Trigger reindexing of all documents in the active project"""
+            active_project_name = self.config_manager.get_active_project_name()
+            if not active_project_name:
+                return jsonify({"error": "No active project set"}), 400
+            
+            project_path = self.config_manager.get_project_path(active_project_name)
+            if not project_path:
+                return jsonify({"error": "Active project not found"}), 404
+            
+            metadata_dir = self.config_manager.get_metadata_path(project_path)
+            hash_cache_file = os.path.join(metadata_dir, "hash_cache.json")
+            
+            try:
+                if os.path.exists(hash_cache_file):
+                    os.remove(hash_cache_file)
+                return jsonify({"status": "success", "message": f"Reindex triggered for project {active_project_name}"})
+            except Exception as e:
+                logger.error(f"Error triggering reindex for project {active_project_name}: {e}")
+                return jsonify({"error": f"Failed to trigger reindex: {e}"}), 500
 
         @self.app.route("/api/documents/<doc_id>/reindex", methods=["POST"])
         def reindex_document(doc_id: str) -> Response:

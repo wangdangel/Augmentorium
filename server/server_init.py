@@ -35,37 +35,40 @@ def start_api_server(
         logger.info("Starting Augmentorium API server")
         
         # Get server configuration
-        server_config = config.global_config.get("server", {})
+        server_config = config.config.get("server", {})
         host = server_config.get("host", "localhost")
         
         # Setup active project database
         db_path = None
+        active_project_name = config.get_active_project_name()
         if active_project:
             db_path = config.get_db_path(active_project)
         else:
             projects = config.get_all_projects()
             if projects:
-                first_project = list(projects.values())[0]
-                db_path = config.get_db_path(first_project)
+                first_project_name = next(iter(projects))
+                db_path = config.get_db_path(first_project_name)
         
         vector_db = VectorDB(db_path) if db_path else None
         
         # Initialize embedder
-        ollama_config = config.global_config.get("ollama", {})
+        ollama_config = config.config.get("ollama", {})
         embedder = OllamaEmbedder(
-            base_url=ollama_config.get("base_url", "http://localhost:11434"),
-            model=ollama_config.get("embedding_model", "codellama:34b")
+            base_url=ollama_config.get("base_url"),
+            model=ollama_config.get("embedding_model")
         )
         
         # Initialize query processor and enrichers
+        from server.query import QueryExpander
+        query_expander = QueryExpander(ollama_embedder=embedder)
         query_processor = QueryProcessor(
             vector_db=vector_db,
-            expander=None,
-            cache_size=config.global_config.get("server", {}).get("cache_size", 100)
+            expander=query_expander,
+            cache_size=server_config.get("cache_size", 100)
         )
         relationship_enricher = RelationshipEnricher(vector_db)
         context_builder = ContextBuilder(
-            max_context_size=config.global_config.get("server", {}).get("max_context_size", 8192)
+            max_context_size=config.config.get("chunking", {}).get("max_chunk_size", 1024)
         )
         
         # Create API server

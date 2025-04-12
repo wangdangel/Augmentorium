@@ -1,0 +1,79 @@
+general:
+  log_dir: C:\Users\leviw\.augmentorium\logs
+  log_level: INFO
+projects: {}
+active_project: null
+indexer:
+  polling_interval: 1.0
+  max_workers: 4
+  hash_algorithm: md5
+  ignore_patterns:
+  - '**/.git/**'
+  - '**/node_modules/**'
+  - '**/__pycache__/**'
+  - '**/.venv/**'
+  - '**/venv/**'
+  - '**/.env/**'
+  - '**/.idea/**'
+  - '**/.vscode/**'
+  - '**/.DS_Store'
+  - '**/dist/**'
+  - '**/build/**'
+  - '**/*.pyc'
+  - '**/*.pyo'
+  - '**/*.pyd'
+  - '**/.augmentorium/**'
+server:
+  host: localhost
+  port: 6655
+  cache_size: 100
+ollama:
+  base_url: http://10.0.0.246:11434
+  embedding_model: bge-m3:latest
+  embedding_batch_size: 10
+chunking:
+  max_chunk_size: 1024
+  chunk_overlap: 128
+  min_chunk_size: 64
+languages:
+  python:
+    extensions:
+    - .py
+    chunking_strategy: ast
+  javascript:
+    extensions:
+    - .js
+    - .jsx
+    - .ts
+    - .tsx
+    chunking_strategy: ast
+  html:
+    extensions:
+    - .html
+    - .htm
+    chunking_strategy: sliding_window
+  css:
+    extensions:
+    - .css
+    - .scss
+    - .sass
+    - .less
+    chunking_strategy: sliding_window
+  json:
+    extensions:
+    - .json
+    chunking_strategy: json_object
+  yaml:
+    extensions:
+    - .yaml
+    - .yml
+    chunking_strategy: yaml_document
+  markdown:
+    extensions:
+    - .md
+    - .markdown
+    chunking_strategy: markdown_section
+  text:
+    extensions:
+    - .txt
+    chunking_strategy: sliding_window

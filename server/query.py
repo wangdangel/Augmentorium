@@ -16,14 +16,14 @@ logger = logging.getLogger(__name__)
 class QueryExpander:
     """Query expander for improving retrieval"""
     
-    def __init__(self, ollama_embedder: Optional[OllamaEmbedder] = None):
+    def __init__(self, ollama_embedder: OllamaEmbedder):
         """
         Initialize query expander
-        
+
         Args:
-            ollama_embedder: Ollama embedder
+            ollama_embedder: Ollama embedder (required)
         """
-        self.ollama_embedder = ollama_embedder or OllamaEmbedder()
+        self.ollama_embedder = ollama_embedder
     
     def expand_query(self, query: str) -> List[str]:
         """
@@ -102,21 +102,21 @@ class QueryProcessor:
     def __init__(
         self,
         vector_db: VectorDB,
-        expander: Optional[QueryExpander] = None,
+        expander: QueryExpander,
         collection_name: str = "code_chunks",
         cache_size: int = 100
     ):
         """
         Initialize query processor
-        
+
         Args:
             vector_db: Vector database
-            expander: Query expander
+            expander: Query expander (required)
             collection_name: Name of the collection
             cache_size: Size of the LRU cache
         """
         self.vector_db = vector_db
-        self.expander = expander or QueryExpander()
+        self.expander = expander
         self.collection_name = collection_name
         self.cache_size = cache_size
     

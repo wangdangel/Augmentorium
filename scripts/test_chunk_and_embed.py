@@ -16,24 +16,25 @@ def load_ollama_config(config_path="config.yaml"):
             config = yaml.safe_load(f)
         ollama_cfg = config.get("ollama", {})
         return {
+def load_ollama_config(config_path="config.yaml"):
+    try:
+        with open(config_path, "r") as f:
+            config = yaml.safe_load(f)
+        ollama_cfg = config.get("ollama", {})
+        return {
             "base_url": ollama_cfg.get("base_url", "http://localhost:11434"),
-            "embedding_model": ollama_cfg.get("embedding_model", "codellama"),
+            "embedding_model": ollama_cfg.get("embedding_model", "bge-m3:latest"),
             "embedding_batch_size": ollama_cfg.get("embedding_batch_size", 10)
         }
-    except Exception:
+    except Exception as e:
+        print(f"Error loading Ollama config: {e}")
         return {
             "base_url": "http://localhost:11434",
-            "embedding_model": "codellama",
+            "embedding_model": "bge-m3:latest",
             "embedding_batch_size": 10
         }
 
-def main():
-    project_root = r"K:\Documents\icecrawl"
-    target_file = os.path.join("scripts", "diagnose_chromadb.py")
-    if not os.path.exists(target_file):
-        print(f"File not found: {target_file}")
-        return
-
+ollama_cfg = load_ollama_config()
     print(f"Chunking file: {target_file}")
     chunker = Chunker()
     chunks = chunker.chunk_file(target_file)

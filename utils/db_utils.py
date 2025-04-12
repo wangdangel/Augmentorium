@@ -48,7 +48,11 @@ class VectorDB:
             Collection: ChromaDB collection
         """
         try:
-            return self.client.get_or_create_collection(name=name)
+            # Explicitly set distance metric to cosine for semantic search
+            return self.client.get_or_create_collection(
+                name=name,
+                metadata={"hnsw:space": "cosine"}
+            )
         except Exception as e:
             logger.error(f"Failed to get or create collection {name}: {e}")
             raise

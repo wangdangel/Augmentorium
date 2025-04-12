@@ -30,7 +30,7 @@ def load_ollama_config(config_path: str = os.path.join(os.path.dirname(__file__)
         ollama_cfg = config.get("ollama", {})
         return {
             "base_url": ollama_cfg.get("base_url", "http://localhost:11434"),
-            "embedding_model": ollama_cfg.get("embedding_model", "codellama"),
+            "embedding_model": ollama_cfg.get("embedding_model", "bge-m3:latest"),
             "embedding_batch_size": ollama_cfg.get("embedding_batch_size", 10)
         }
     except Exception as e:
@@ -38,20 +38,20 @@ def load_ollama_config(config_path: str = os.path.join(os.path.dirname(__file__)
         # Fallback defaults
         return {
             "base_url": "http://localhost:11434",
-            "embedding_model": "codellama",
+            "embedding_model": "bge-m3:latest",
             "embedding_batch_size": 10
         }
 
-ollama_config = load_ollama_config()
+# Removed top-level config loading to prevent unwanted initialization/logging at import time.
 
 class OllamaEmbedder:
     """Embedder using Ollama API"""
     
     def __init__(
         self,
-        base_url: str = ollama_config["base_url"],
-        model: str = ollama_config["embedding_model"],
-        batch_size: int = ollama_config["embedding_batch_size"],
+        base_url: str = None,
+        model: str = None,
+        batch_size: int = None,
         max_retries: int = 3,
         retry_delay: float = 1.0,
         warmup_timeout: float = 120.0,
@@ -59,7 +59,7 @@ class OllamaEmbedder:
     ):
         """
         Initialize Ollama embedder
-        
+
         Args:
             base_url: Base URL for Ollama API
             model: Model to use for embeddings
@@ -69,6 +69,12 @@ class OllamaEmbedder:
             warmup_timeout: Max seconds to wait for model to load
             warmup_interval: Seconds between warmup checks
         """
+        if base_url is None or model is None or batch_size is None:
+            config = load_ollama_config()
+            base_url = base_url or config["base_url"]
+            model = model or config["embedding_model"]
+            batch_size = batch_size or config["embedding_batch_size"]
+
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.batch_size = batch_size
@@ -77,10 +83,10 @@ class OllamaEmbedder:
         self.warmup_timeout = warmup_timeout
         self.warmup_interval = warmup_interval
         self.disabled = False
-        
+
         # Initialize embedding API endpoint
         self.embed_url = f"{self.base_url}/api/embeddings"
-        
+
         logger.info(f"Initialized Ollama embedder with model: {self.model}")
         self._verify_ollama()
 

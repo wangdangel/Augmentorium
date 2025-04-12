@@ -8,8 +8,11 @@ import logging
 import threading
 from typing import Dict, List, Optional, Any, Set, Tuple, Union
 from queue import Queue
+import pathspec # Ensure pathspec is imported
 
 from config.manager import ConfigManager
+# Import constants needed from defaults
+from config.defaults import PROJECT_INTERNAL_DIR_NAME, DEFAULT_LOG_DIR # Ensure DEFAULT_LOG_DIR is imported
 from utils.db_utils import VectorDB
 from utils.logging import ProjectLogger
 from utils.path_utils import get_path_hash_key # Import the missing function
@@ -54,23 +57,31 @@ class Indexer:
         """
         self.config_manager = config_manager
         self.project_path = os.path.abspath(project_path)
-        # Remove storing the service reference
-        
-        # Load project configuration
-        self.project_config = config_manager.get_project_config(self.project_path)
-        
+        self.config = config_manager.config # Get reference to the single root config
+
+        # Find project name from the central registry
+        self.project_name = "unknown_project" # Default
+        for name, path in config_manager.get_all_projects().items():
+            if path == self.project_path:
+                self.project_name = name
+                break
+        if self.project_name == "unknown_project":
+             # This shouldn't happen if indexer is created correctly via service
+             logger.error(f"Could not find project name for path {self.project_path} in config registry.")
+             # Consider raising an error or handling appropriately
+
         # Set up project logger
-        self.project_name = self.project_config["project"]["name"]
         self.logger = ProjectLogger(self.project_name)
-        
-        # Set up vector database
+
+        # Set up vector database using path from ConfigManager
         db_path = config_manager.get_db_path(self.project_path)
         self.vector_db = VectorDB(db_path)
-        
-        # Initialize graph database if needed
+
+        # Initialize graph database if needed using path from ConfigManager
         try:
-            graph_db_path = os.path.join(self.project_path, ".augmentorium", "code_graph.db")
+            graph_db_path = config_manager.get_graph_db_path(self.project_path)
             if not os.path.exists(graph_db_path):
+                # Graph DB initialization logic remains the same, just uses the correct path
                 from utils.graph_db import get_connection
                 conn = get_connection(graph_db_path)
                 c = conn.cursor()
@@ -101,53 +112,87 @@ class Indexer:
                 print(f"Graph database initialized at {graph_db_path}")
         except Exception as e:
             print(f"Failed to initialize graph database: {e}")
-        
-        # Set up Ollama embedder
-        ollama_config = config_manager.global_config.get("ollama", {})
+
+        # Set up Ollama embedder - Read directly from the single config
+        ollama_config = self.config.get("ollama", {})
+        ollama_base_url = ollama_config.get("base_url", "http://localhost:11434")
+        ollama_model = ollama_config.get("embedding_model", "bge-m3:latest")
+        ollama_batch_size = ollama_config.get("embedding_batch_size", 10)
+
         self.ollama_embedder = OllamaEmbedder(
-            base_url=ollama_config.get("base_url", "http://localhost:11434"),
-            model=ollama_config.get("embedding_model", "codellama"),
-            batch_size=ollama_config.get("embedding_batch_size", 10)
+            base_url=ollama_base_url,
+            model=ollama_model,
+            batch_size=ollama_batch_size
         )
-        
-        # Set up chunker
-        self.chunker = Chunker(self.project_config.get("chunking", {}))
-        
-        # Set up chunk processor
+        self.logger.info(f"Initialized OllamaEmbedder with model: {ollama_model}, base_url: {ollama_base_url}, batch_size: {ollama_batch_size}")
+
+        # Set up chunker - Read directly from the single config
+        chunking_config = self.config.get("chunking", {})
+        self.chunker = Chunker(chunking_config)
+
+        # Set up chunk processor - Read directly from the single config
+        indexer_config = self.config.get("indexer", {})
+        chunk_embedder_batch_size = ollama_batch_size # Use the same batch size for consistency
+        chunk_embedder_max_workers = indexer_config.get("max_workers", 4)
+
         self.chunk_processor = ChunkProcessor(
             vector_db=self.vector_db,
             embedder=ChunkEmbedder(
                 ollama_embedder=self.ollama_embedder,
-                batch_size=ollama_config.get("embedding_batch_size", 10),
-                max_workers=config_manager.global_config.get("indexer", {}).get("max_workers", 4)
+                batch_size=chunk_embedder_batch_size,
+                max_workers=chunk_embedder_max_workers
             )
         )
-        
-        # Load ignore patterns from config.yaml
-        import pathspec
-        ignore_patterns = self.config_manager.global_config.get("indexer", {}).get("ignore_patterns", [])
-        project_excludes = self.project_config["project"].get("exclude_patterns", [])
-        combined_patterns = list(set(project_excludes + ignore_patterns))
+
+        # Load ignore patterns: base from config + project-specific from .augmentoriumignore
+        base_ignore_patterns = indexer_config.get("ignore_patterns", [])
+        project_ignore_patterns = []
+        project_ignore_file = config_manager.get_project_ignore_file_path(self.project_path)
+
+        if os.path.exists(project_ignore_file):
+            try:
+                with open(project_ignore_file, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#'): # Ignore comments and blank lines
+                            project_ignore_patterns.append(line)
+                self.logger.info(f"Loaded {len(project_ignore_patterns)} patterns from {project_ignore_file}")
+            except Exception as e:
+                self.logger.warning(f"Failed to read project ignore file {project_ignore_file}: {e}")
+
+        # Combine and deduplicate patterns
+        combined_patterns = list(set(base_ignore_patterns + project_ignore_patterns))
         self.ignore_spec = pathspec.PathSpec.from_lines("gitwildmatch", combined_patterns)
-        
-        # Initialize file hasher and load cache
-        cache_dir = os.path.join(
-            config_manager.global_config["general"]["log_dir"],
-            "cache"
-        )
-        os.makedirs(cache_dir, exist_ok=True)
-        project_hash = ""
-        try:
-            import hashlib
-            project_hash = hashlib.md5(self.project_path.encode()).hexdigest()
-        except Exception:
-            pass
-        self.hash_cache_file = os.path.join(cache_dir, f"{project_hash}_hash_cache.json")
+        self.logger.info(f"Initialized with {len(combined_patterns)} combined ignore patterns.")
+
+        # Initialize file hasher and load cache from project's metadata directory
+        metadata_dir = self.config_manager.get_metadata_path(self.project_path)
+        self.hash_cache_file = os.path.join(metadata_dir, "hash_cache.json")
         self.file_hasher = FileHasher()
-        self.file_hasher.load_cache(self.hash_cache_file)
+        try:
+            self.file_hasher.load_cache(self.hash_cache_file)
+        except Exception as e:
+            self.logger.warning(f"Failed to load hash cache from {self.hash_cache_file}: {e}")
         
         self.logger.info(f"Initialized indexer for project: {self.project_name}")
     
+    def close(self):
+        """Close all resources"""
+        try:
+            # Save hash cache before closing
+            try:
+                self.file_hasher.save_cache(self.hash_cache_file)
+            except Exception as e:
+                self.logger.warning(f"Failed to save hash cache: {e}")
+            # Close vector DB if it has a close method
+            if hasattr(self.vector_db, "close"):
+                self.vector_db.close()
+        except Exception:
+            pass
+        # TODO: Close graph DB connections if persistent (currently opened per operation)
+        # TODO: Stop any file watchers if running
+        # Placeholder for future cleanup logic
+
     def process_file(self, file_path: str) -> int:
         """
         Process a file
@@ -189,7 +234,8 @@ class Indexer:
                 import json
                 from utils.graph_db import get_connection, insert_or_update_node, insert_edge
 
-                graph_db_path = os.path.join(self.project_path, ".augmentorium", "code_graph.db")
+                # Get graph DB path using ConfigManager method
+                graph_db_path = self.config_manager.get_graph_db_path(self.project_path)
                 conn = get_connection(graph_db_path)
 
                 for chunk in chunks:
@@ -337,17 +383,19 @@ class IndexerService:
             config_manager: Configuration manager
         """
         self.config_manager = config_manager
-        
+        self.config = config_manager.config # Get reference to the single root config
+
         # Initialize projects
         self.indexers: Dict[str, Indexer] = {}
-        
-        # Initialize file watcher
-        indexer_config = config_manager.global_config.get("indexer", {})
-        cache_dir = os.path.join(
-            config_manager.global_config["general"]["log_dir"],
-            "cache"
-        )
-        
+
+        # Initialize file watcher - Use settings from the single config
+        indexer_config = self.config.get("indexer", {})
+        general_config = self.config.get("general", {})
+        log_dir = general_config.get("log_dir", DEFAULT_LOG_DIR) # Use fallback default if needed
+        # Use the same specific subdir for file watcher cache
+        cache_dir = os.path.join(log_dir, "indexer_cache")
+        os.makedirs(cache_dir, exist_ok=True) # Ensure it exists
+
         self.file_watcher = FileWatcherService(
             polling_interval=indexer_config.get("polling_interval", 1.0),
             hash_algorithm=indexer_config.get("hash_algorithm", "md5"),
@@ -378,22 +426,33 @@ class IndexerService:
                 logger.warning(f"Project already being indexed: {project_path}")
                 return False
             
-            # Initialize indexer (no longer passing file_watcher_service)
+            # Initialize indexer
             indexer = Indexer(self.config_manager, project_path)
             self.indexers[project_path] = indexer
 
-            # Get project config for combined patterns
-            project_config = self.config_manager.get_project_config(project_path)
-            
-            # Combine global and project-specific ignore patterns
-            global_ignore_patterns = self.config_manager.global_config.get("indexer", {}).get("ignore_patterns", [])
-            project_excludes = project_config["project"].get("exclude_patterns", [])
-            combined_patterns = list(set(project_excludes + global_ignore_patterns))
-            
+            # --- Combine ignore patterns for FileWatcher ---
+            # Base patterns from root config
+            base_ignore_patterns = self.config.get("indexer", {}).get("ignore_patterns", [])
+            # Project patterns from .augmentoriumignore
+            project_ignore_patterns = []
+            project_ignore_file = self.config_manager.get_project_ignore_file_path(project_path)
+            if os.path.exists(project_ignore_file):
+                try:
+                    with open(project_ignore_file, 'r') as f:
+                        for line in f:
+                            line = line.strip()
+                            if line and not line.startswith('#'):
+                                project_ignore_patterns.append(line)
+                except Exception as e:
+                    logger.warning(f"Failed to read project ignore file {project_ignore_file} for watcher: {e}")
+
+            combined_patterns = list(set(base_ignore_patterns + project_ignore_patterns))
+            # --- End Combine ignore patterns ---
+
             # Add to file watcher using combined patterns
             self.file_watcher.add_project(project_path, combined_patterns)
-            
-            logger.info(f"Added project to index: {project_path}")
+
+            logger.info(f"Added project to index: {project_path} with {len(combined_patterns)} ignore patterns.")
             
             # Perform initial indexing
             if self.running:
@@ -541,19 +600,30 @@ class IndexerService:
         import time as _time
         while self.running:
             try:
-                # Reload config from disk to get latest projects
-                self.config_manager.reload()
+                # Reload config from disk to get latest projects list
+                self.config_manager.reload() # This now reloads the single root config
 
-                # Reload config and sync projects every 15 seconds
-                projects_in_config = self.config_manager.get_all_projects()
+                # Sync projects based on the reloaded config
+                projects_in_config = self.config_manager.get_all_projects() # Gets projects from self.config
+                logger.debug(f"[Indexer Check Loop] Reloaded config projects: {projects_in_config}")
                 current_paths = set(self.indexers.keys())
                 config_paths = set(projects_in_config.values())
+                logger.debug(f"[Indexer Check Loop] Config paths (abs): {[os.path.abspath(p) for p in config_paths]}")
+                logger.debug(f"[Indexer Check Loop] Current indexer paths (abs): {[os.path.abspath(p) for p in current_paths]}")
 
                 logger.debug(f"[Indexer Check Loop] Current indexer paths: {current_paths}")
-                logger.debug(f"[Indexer Check Loop] Config project paths: {config_paths}")
+                logger.debug(f"[Indexer Check Loop] Config project paths: {config_paths} (type: {type(config_paths)})")
 
                 new_projects = config_paths - current_paths
-                logger.debug(f"[Indexer Check Loop] New projects to add: {new_projects}")
+                logger.debug(f"[Indexer Check Loop] New projects to add: {new_projects} (type: {type(new_projects)})")
+                
+                # Additional debug logging
+                logger.debug(f"[Indexer Check Loop] Current indexer paths details:")
+                for path in current_paths:
+                    logger.debug(f"- {path}")
+                logger.debug(f"[Indexer Check Loop] Config project paths details:")
+                for path in config_paths:
+                    logger.debug(f"- {path}")
 
                 # Add new projects
                 for path in new_projects:
@@ -612,7 +682,10 @@ def start_indexer(
             service.add_project(path)
     else:
         # Add all registered projects
-        for project_name, project_path in config.get_all_projects().items():
+        projects_dict = config.get_all_projects()
+        if not projects_dict:
+            projects_dict = {}
+        for project_name, project_path in projects_dict.items():
             service.add_project(project_path)
     
     # Start service

@@ -1,109 +1,153 @@
-# Augmentorium global configuration
-
 general:
-  log_dir: "~/.augmentorium/logs"
-  log_level: "INFO"
-
+  log_dir: C:\Users\leviw/.augmentorium/logs
+  log_level: INFO
+projects:
+  aaaaa: K:\Documents\aaaaa
+  new_project: K:\Documents\new_project
+active_project: aaaaa
 indexer:
-  polling_interval: 1.0  # seconds
+  polling_interval: 1.0
   max_workers: 4
-  hash_algorithm: "md5"
+  hash_algorithm: md5
   ignore_patterns:
-    - ".git"
-    - ".augmentorium"
-    - ".qodo"
-    - ".venv"
-    - ".mypy_cache"
-    - ".pytest_cache"
-    - ".idea"
-    - ".vscode"
-    - "node_modules"
-    - "dist"
-    - "build"
-    - "__pycache__"
-    - "*.egg-info"
-    - "logs"
-    - "old_code"
-    - ".husky"
-    - "**/.git/**"
-    - "**/.augmentorium/**"
-    - "**/.qodo/**"
-    - "**/.venv/**"
-    - "**/.mypy_cache/**"
-    - "**/.pytest_cache/**"
-    - "**/.idea/**"
-    - "**/.vscode/**"
-    - "**/node_modules/**"
-    - "**/dist/**"
-    - "**/build/**"
-    - "**/__pycache__/**"
-    - "**/*.egg-info/**"
-    - "**/.husky/**"
-    - "**/logs/**"
-    - "**/old_code/**"
-    - "*.md"
-    - ".Augmentorium"
-    - "**/.Augmentorium/**"
-    - "*.png"
-    - "*.jpg"
-    - "*.jpeg"
-    - "*.gif"
-    - "*.bmp"
-    - "*.tiff"
-    - "*.webp"
-    - "*.svg"
-    - "*.ico"
-    - "*.heic"
-    - "*.avif"
-    - "*.jpe"
-    - "*.jif"
-    - "*.jfif"
-    - "*.jfi"
-    - "*.dib"
-    - "*.tif"
-    - "*.svgz"
-    - "*.heif"
-    - "*.apng"
-    - "*.raw"
-    - "*.arw"
-    - "*.cr2"
-    - "*.nrw"
-    - "*.k25"
-    - "*.jp2"
-    - "*.j2k"
-    - "*.jpf"
-    - "*.jpx"
-    - "*.jpm"
-    - "*.mj2"
-    - "*.ind"
-    - "*.indd"
-    - "*.indt"
-    - "*.ai"
-    - "*.eps"
-    - "*.psd"
-    - "*.psb"
-    - "*.3fr"
-    - "*.dng"
-    - "*.erf"
-    - "*.mef"
-    - "*.mos"
-    - "*.orf"
-    - "*.pef"
-    - "*.raf"
-    - "*.rw2"
-    - "*.rwl"
-    - "*.sr2"
-    - "*.srf"
-    - "*.srw"
-    - "*.x3f"
-
+  - .git
+  - .augmentorium
+  - .qodo
+  - .venv
+  - .mypy_cache
+  - .pytest_cache
+  - .idea
+  - .vscode
+  - node_modules
+  - dist
+  - build
+  - __pycache__
+  - '*.egg-info'
+  - logs
+  - old_code
+  - .husky
+  - '**/.git/**'
+  - '**/.augmentorium/**'
+  - '**/.qodo/**'
+  - '**/.venv/**'
+  - '**/.mypy_cache/**'
+  - '**/.pytest_cache/**'
+  - '**/.idea/**'
+  - '**/.vscode/**'
+  - '**/node_modules/**'
+  - '**/dist/**'
+  - '**/build/**'
+  - '**/__pycache__/**'
+  - '**/*.egg-info/**'
+  - '**/.husky/**'
+  - '**/logs/**'
+  - '**/old_code/**'
+  - '*.md'
+  - .Augmentorium
+  - '**/.Augmentorium/**'
+  - '*.png'
+  - '*.jpg'
+  - '*.jpeg'
+  - '*.gif'
+  - '*.bmp'
+  - '*.tiff'
+  - '*.webp'
+  - '*.svg'
+  - '*.ico'
+  - '*.heic'
+  - '*.avif'
+  - '*.jpe'
+  - '*.jif'
+  - '*.jfif'
+  - '*.jfi'
+  - '*.dib'
+  - '*.tif'
+  - '*.svgz'
+  - '*.heif'
+  - '*.apng'
+  - '*.raw'
+  - '*.arw'
+  - '*.cr2'
+  - '*.nrw'
+  - '*.k25'
+  - '*.jp2'
+  - '*.j2k'
+  - '*.jpf'
+  - '*.jpx'
+  - '*.jpm'
+  - '*.mj2'
+  - '*.ind'
+  - '*.indd'
+  - '*.indt'
+  - '*.ai'
+  - '*.eps'
+  - '*.psd'
+  - '*.psb'
+  - '*.3fr'
+  - '*.dng'
+  - '*.erf'
+  - '*.mef'
+  - '*.mos'
+  - '*.orf'
+  - '*.pef'
+  - '*.raf'
+  - '*.rw2'
+  - '*.rwl'
+  - '*.sr2'
+  - '*.srf'
+  - '*.srw'
+  - '*.x3f'
 server:
-  host: "localhost"
-  port: 6655  # Default port for the API server
+  host: localhost
+  port: 6655
   cache_size: 100
-
 ollama:
-  # Change this to the address of your Ollama server
-  base_url: "http://10.0.0.246:11434"  # Replace with your server's IP
-  embedding_model: "codellama:34b"
+  base_url: http://10.0.0.246:11434
+  embedding_model: bge-m3:latest
   embedding_batch_size: 10
+chunking:
+  max_chunk_size: 1024
+  chunk_overlap: 128
+  min_chunk_size: 64
+languages:
+  python:
+    extensions:
+    - .py
+    chunking_strategy: ast
+  javascript:
+    extensions:
+    - .js
+    - .jsx
+    - .ts
+    - .tsx
+    chunking_strategy: ast
+  html:
+    extensions:
+    - .html
+    - .htm
+    chunking_strategy: sliding_window
+  css:
+    extensions:
+    - .css
+    - .scss
+    - .sass
+    - .less
+    chunking_strategy: sliding_window
+  json:
+    extensions:
+    - .json
+    chunking_strategy: json_object
+  yaml:
+    extensions:
+    - .yaml
+    - .yml
+    chunking_strategy: yaml_document
+  markdown:
+    extensions:
+    - .md
+    - .markdown
+    chunking_strategy: markdown_section
+  text:
+    extensions:
+    - .txt
+    chunking_strategy: sliding_window

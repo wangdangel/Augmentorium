@@ -46,12 +46,14 @@ class MCPServer:
         self.query_processor = None
         self.relationship_enricher = None
         self.context_builder = None
-        
-        # Set up Ollama embedder
-        ollama_config = config_manager.global_config.get("ollama", {})
+        self.config = config_manager.config # Get reference to the single root config
+
+        # Set up Ollama embedder - Read from the single config
+        ollama_config = self.config.get("ollama", {})
         self.ollama_embedder = OllamaEmbedder(
             base_url=ollama_config.get("base_url", "http://localhost:11434"),
-            model=ollama_config.get("embedding_model", "codellama")
+            model=ollama_config.get("embedding_model", "bge-m3:latest")
+            # Note: Batch size isn't directly used by MCPServer, but OllamaEmbedder itself reads it
         )
         
         # Initialize with active project if provided
@@ -63,12 +65,34 @@ class MCPServer:
             if projects:
                 first_project = list(projects.values())[0]
                 self.set_active_project(first_project)
-        
-        # Set up context builder
+        # Initialize with active project if provided or use first from config
+        if active_project_path:
+            self.set_active_project(active_project_path)
+        else:
+            # Try to use the active_project from config, or fallback to first project
+            active_name = config_manager.get_active_project_name()
+            if active_name:
+                 active_path = config_manager.get_project_path(active_name)
+                 if active_path:
+                     self.set_active_project(active_path)
+                 else: # Active name exists but path doesn't (config inconsistency?)
+                      logger.warning(f"Active project '{active_name}' not found in registry. Trying first project.")
+                      projects = config_manager.get_all_projects()
+                      if projects:
+                          first_project_path = list(projects.values())[0]
+                          self.set_active_project(first_project_path)
+            else: # No active project set, try first project
+                projects = config_manager.get_all_projects()
+                if projects:
+                    first_project_path = list(projects.values())[0]
+                    self.set_active_project(first_project_path)
+
+        # Set up context builder - Read from the single config
+        server_config = self.config.get("server", {})
         self.context_builder = ContextBuilder(
-            max_context_size=config_manager.global_config.get("server", {}).get("max_context_size", 8192)
+            max_context_size=server_config.get("max_context_size", 8192)
         )
-        
+
         # Running flag
         self.running = False
         
@@ -101,20 +125,24 @@ class MCPServer:
             # Initialize vector database
             vector_db = VectorDB(db_path)
             
-            # Set up query processor
+            # Set up query processor - Read cache size from the single config
+            server_config = self.config.get("server", {})
             self.query_processor = QueryProcessor(
                 vector_db=vector_db,
                 expander=QueryExpander(self.ollama_embedder),
-                cache_size=self.config_manager.global_config.get("server", {}).get("cache_size", 100)
+                cache_size=server_config.get("cache_size", 100)
             )
-            
+
             # Set up relationship enricher
             self.relationship_enricher = RelationshipEnricher(vector_db)
-            
-            # Get project name
-            project_config = self.config_manager.get_project_config(project_path)
-            project_name = project_config["project"]["name"]
-            
+
+            # Get project name from the registry
+            project_name = "unknown"
+            for name, path in self.config_manager.get_all_projects().items():
+                 if path == project_path:
+                     project_name = name
+                     break
+
             logger.info(f"Set active project: {project_name} ({project_path})")
             
             return True

@@ -26,26 +26,24 @@ def parse_arguments():
     parser.add_argument("--project", help="Path to the active project")
     parser.add_argument("--port", type=int, default=6655, help="Port for the API server")
     parser.add_argument("--ollama-url", help="URL for the Ollama API (e.g., http://server-ip:11434)")
-    parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], 
-                      default="DEBUG", help="Set the logging level")
     return parser.parse_args()
 
 def main():
     """Main entry point for the server"""
     args = parse_arguments()
+    config = ConfigManager(args.config)
     
-    # Setup logging
-    log_level = getattr(logging, args.log_level)
+    # Setup logging using config value
+    log_level = getattr(logging, config.config.get("general", {}).get("log_level", "INFO"))
     setup_logging(log_level)
     
     logger = logging.getLogger(__name__)
     logger.info("Starting Augmentorium Server")
     
-    config = ConfigManager(args.config)
-    
     if args.ollama_url:
-        config.global_config.setdefault('ollama', {})['base_url'] = args.ollama_url
+        config.config.setdefault('ollama', {})['base_url'] = args.ollama_url
         logger.info(f"Using Ollama API at: {args.ollama_url}")
+        config._save_config()
     
     api_server, api_thread = start_api_server(config, args.port, args.project)
     
