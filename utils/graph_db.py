@@ -74,3 +74,70 @@ def initialize_graph_db(db_path):
     c.execute("CREATE INDEX IF NOT EXISTS idx_edges_relation ON edges(relation_type)")
     conn.commit()
     conn.close()
+
+def get_edges_for_node(conn, node_id, relation_type=None):
+    """
+    Returns a list of edges for a given node_id (as source), optionally filtered by relation_type.
+    Each edge is a dict with keys: source_id, target_id, relation_type, metadata (dict).
+    """
+    if relation_type:
+        cursor = conn.execute(
+            "SELECT source_id, target_id, relation_type, metadata FROM edges WHERE source_id = ? AND relation_type = ?",
+            (node_id, relation_type)
+        )
+    else:
+        cursor = conn.execute(
+            "SELECT source_id, target_id, relation_type, metadata FROM edges WHERE source_id = ?",
+            (node_id,)
+        )
+    edges = []
+    for row in cursor.fetchall():
+        edges.append({
+            "source_id": row[0],
+            "target_id": row[1],
+            "relation_type": row[2],
+            "metadata": json.loads(row[3]) if row[3] else {}
+        })
+    return edges
+
+def get_node_by_id(conn, node_id):
+    """
+    Returns a node dict for the given node_id, or None if not found.
+    """
+    cursor = conn.execute(
+        "SELECT id, type, name, file_path, start_line, end_line, metadata FROM nodes WHERE id = ?",
+        (node_id,)
+    )
+    row = cursor.fetchone()
+    if row:
+        return {
+            "id": row[0],
+            "type": row[1],
+            "name": row[2],
+            "file_path": row[3],
+            "start_line": row[4],
+            "end_line": row[5],
+            "metadata": json.loads(row[6]) if row[6] else {}
+        }
+    return None
+
+def get_nodes_by_file_path(conn, file_path):
+    """
+    Returns a list of node dicts for the given file_path.
+    """
+    cursor = conn.execute(
+        "SELECT id, type, name, file_path, start_line, end_line, metadata FROM nodes WHERE file_path = ?",
+        (file_path,)
+    )
+    nodes = []
+    for row in cursor.fetchall():
+        nodes.append({
+            "id": row[0],
+            "type": row[1],
+            "name": row[2],
+            "file_path": row[3],
+            "start_line": row[4],
+            "end_line": row[5],
+            "metadata": json.loads(row[6]) if row[6] else {}
+        })
+    return nodes

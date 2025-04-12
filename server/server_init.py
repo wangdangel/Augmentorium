@@ -61,10 +61,12 @@ def start_api_server(
         # Initialize query processor and enrichers
         from server.query import QueryExpander
         query_expander = QueryExpander(ollama_embedder=embedder)
+        graph_db_path = config_manager.get_graph_db_path(project_path)
         query_processor = QueryProcessor(
             vector_db=vector_db,
             expander=query_expander,
-            cache_size=server_config.get("cache_size", 100)
+            cache_size=server_config.get("cache_size", 100),
+            graph_db_path=graph_db_path
         )
         relationship_enricher = RelationshipEnricher(vector_db)
         context_builder = ContextBuilder(

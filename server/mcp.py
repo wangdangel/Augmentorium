@@ -127,10 +127,12 @@ class MCPServer:
             
             # Set up query processor - Read cache size from the single config
             server_config = self.config.get("server", {})
+            graph_db_path = self.config_manager.get_graph_db_path(project_path)
             self.query_processor = QueryProcessor(
                 vector_db=vector_db,
                 expander=QueryExpander(self.ollama_embedder),
-                cache_size=server_config.get("cache_size", 100)
+                cache_size=server_config.get("cache_size", 100),
+                graph_db_path=graph_db_path
             )
 
             # Set up relationship enricher

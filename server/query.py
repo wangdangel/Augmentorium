@@ -10,7 +10,9 @@ from functools import lru_cache
 
 from utils.db_utils import VectorDB
 from indexer.embedder import OllamaEmbedder
-
+from utils.text_preprocessing import preprocess_text
+from utils.synonyms import SYNONYM_DICT
+from utils.graph_db import get_connection, get_nodes_by_file_path, get_edges_for_node, get_node_by_id
 logger = logging.getLogger(__name__)
 
 class QueryExpander:
@@ -27,18 +29,66 @@ class QueryExpander:
     
     def expand_query(self, query: str) -> List[str]:
         """
-        Expand a query with related terms
-        
+        Expand a query with related terms (cartesian product synonym expansion).
+
         Args:
             query: Original query
-            
+
         Returns:
-            List[str]: List of expanded queries
+            List[str]: List of expanded queries (original + all synonym combinations)
         """
-        # For now, just return the original query
-        # In a full implementation, we would use the LLM to generate
-        # related queries and alternative phrasings
-        return [query]
+        from itertools import product
+        import re
+
+        # Use imported synonym dictionary
+        synonym_dict = SYNONYM_DICT
+
+        # Tokenize query (simple whitespace split)
+        tokens = query.split()
+        # For each token, get [token] or [synonyms...]
+        synonym_options = []
+        for token in tokens:
+            key = token.lower()
+            if key in synonym_dict:
+                options = [token] + [syn for syn in synonym_dict[key]]
+            else:
+                options = [token]
+            synonym_options.append(options)
+
+        # Cartesian product to generate all combinations
+        expanded_queries = set()
+        for combination in product(*synonym_options):
+            expanded = " ".join(combination)
+            # Normalize: lowercase, strip, collapse whitespace
+            normalized = re.sub(r"\s+", " ", expanded.strip().lower())
+            expanded_queries.add(normalized)
+
+        return list(expanded_queries)
+        import re
+        from itertools import product
+
+        # Tokenize query (simple whitespace split)
+        tokens = query.split()
+        # For each token, get [token] or [synonyms...]
+        synonym_options = []
+        for token in tokens:
+            key = token.lower()
+            if key in synonym_dict:
+                # preserve original casing
+                options = [token] + [syn for syn in synonym_dict[key]]
+            else:
+                options = [token]
+            synonym_options.append(options)
+
+        # Cartesian product to generate all combinations
+        expanded_queries = set()
+        for combination in product(*synonym_options):
+            expanded = " ".join(combination)
+            # Normalize: lowercase, strip, collapse whitespace
+            normalized = re.sub(r"\s+", " ", expanded.strip().lower())
+            expanded_queries.add(normalized)
+
+        return list(expanded_queries)
     
     def get_query_embedding(self, query: str) -> Optional[List[float]]:
         """
@@ -98,13 +148,14 @@ class QueryResult:
 
 class QueryProcessor:
     """Processor for queries"""
-    
     def __init__(
         self,
         vector_db: VectorDB,
         expander: QueryExpander,
         collection_name: str = "code_chunks",
-        cache_size: int = 100
+        cache_size: int = 100,
+        remove_stopwords_for_queries: bool = False,
+        graph_db_path: Optional[str] = None
     ):
         """
         Initialize query processor
@@ -114,11 +165,17 @@ class QueryProcessor:
             expander: Query expander (required)
             collection_name: Name of the collection
             cache_size: Size of the LRU cache
+            graph_db_path: Path to the graph database (for hybrid enrichment)
         """
         self.vector_db = vector_db
         self.expander = expander
         self.collection_name = collection_name
         self.cache_size = cache_size
+        self.remove_stopwords_for_queries = remove_stopwords_for_queries
+        self.graph_db_path = graph_db_path
+        self.relationship_enricher = RelationshipEnricher(
+            vector_db, collection_name, graph_db_path=graph_db_path
+        )
     
     @lru_cache(maxsize=100)
     def query(
@@ -143,11 +200,17 @@ class QueryProcessor:
         try:
             logger.info(f"Processing query: {query_text}")
             
-            # Expand query
-            expanded_queries = self.expander.expand_query(query_text)
-            
-            # Get embedding for query
-            embedding = self.expander.get_query_embedding(query_text)
+            # Preprocess query text (identical to document preprocessing, with optional stopword removal)
+            preprocessed_query = preprocess_text(
+                query_text,
+                remove_stopwords_flag=self.remove_stopwords_for_queries
+            )
+
+            # Expand query (using preprocessed query)
+            expanded_queries = self.expander.expand_query(preprocessed_query)
+
+            # Get embedding for query (using preprocessed query)
+            embedding = self.expander.get_query_embedding(preprocessed_query)
             if not embedding:
                 logger.error("Failed to get embedding for query")
                 return []
@@ -198,6 +261,10 @@ class QueryProcessor:
             
             logger.info(f"Found {len(query_results)} results for query: {query_text}")
             
+            # Hybrid enrichment: add graph relationships
+            if self.relationship_enricher:
+                query_results = self.relationship_enricher.enrich_results(query_results)
+
             return query_results
         except Exception as e:
             logger.error(f"Failed to process query: {e}")
@@ -211,45 +278,68 @@ class QueryProcessor:
 class RelationshipEnricher:
     """Enricher for relationship data"""
     
-    def __init__(self, vector_db: VectorDB, collection_name: str = "code_chunks"):
+    def __init__(self, vector_db: VectorDB, collection_name: str = "code_chunks", graph_db_path: Optional[str] = None):
         """
         Initialize relationship enricher
         
         Args:
             vector_db: Vector database
             collection_name: Name of the collection
+            graph_db_path: Path to the graph database (required for graph enrichment)
         """
         self.vector_db = vector_db
         self.collection_name = collection_name
+        self.graph_db_path = graph_db_path
     
     def enrich_results(self, results: List[QueryResult]) -> List[QueryResult]:
         """
-        Enrich results with relationship data
-        
-        Args:
-            results: List of query results
-            
-        Returns:
-            List[QueryResult]: Enriched results
+        Enrich results with both vector and graph relationship data.
         """
         try:
             if not results:
                 return results
-            
+
             # Collect file paths
             file_paths = {result.file_path for result in results if result.file_path}
-            
-            # Get related files
+
+            # Get related files (vector-based, legacy)
             related_files = {}
             for file_path in file_paths:
                 related = self._get_related_files(file_path)
                 related_files[file_path] = related
-            
-            # Enrich metadata with relationship data
+
+            # Graph DB enrichment
+            graph_relationships = {}
+            if self.graph_db_path:
+                conn = get_connection(self.graph_db_path)
+                for file_path in file_paths:
+                    nodes = get_nodes_by_file_path(conn, file_path)
+                    file_graph = []
+                    for node in nodes:
+                        node_id = node["id"]
+                        edges = get_edges_for_node(conn, node_id)
+                        edge_info = []
+                        for edge in edges:
+                            target_node = get_node_by_id(conn, edge["target_id"])
+                            edge_info.append({
+                                "relation_type": edge["relation_type"],
+                                "target_id": edge["target_id"],
+                                "target_node": target_node
+                            })
+                        file_graph.append({
+                            "node": node,
+                            "edges": edge_info
+                        })
+                    graph_relationships[file_path] = file_graph
+                conn.close()
+
+            # Enrich metadata with both relationship types
             for result in results:
                 if result.file_path in related_files:
                     result.metadata["related_files"] = related_files[result.file_path]
-            
+                if self.graph_db_path and result.file_path in graph_relationships:
+                    result.metadata["graph_relationships"] = graph_relationships[result.file_path]
+
             return results
         except Exception as e:
             logger.error(f"Failed to enrich results: {e}")

@@ -339,22 +339,42 @@ class APIServer:
 
         @self.app.route("/api/graph", methods=["GET"])
         def get_graph() -> Response:
-            """Return code relationship graph data"""
-            # TODO: Replace with real graph data
+            """Return code relationship graph data from the graph database"""
+            from utils.graph_db import get_connection
+            from utils.graph_db import get_node_by_id
+            import json
+            # Get the active project path and graph DB path
+            project_path = self.config_manager.get_active_project_path()
+            graph_db_path = self.config_manager.get_graph_db_path(project_path)
+            conn = get_connection(graph_db_path)
+            # Fetch all nodes
+            node_rows = conn.execute("SELECT id, type, name, file_path, start_line, end_line, metadata FROM nodes").fetchall()
+            nodes = []
+            for row in node_rows:
+                node = {
+                    "id": row[0],
+                    "type": row[1],
+                    "name": row[2],
+                    "file_path": row[3],
+                    "start_line": row[4],
+                    "end_line": row[5],
+                    "group": row[1] or "node",  # Use type as group for coloring
+                }
+                nodes.append(node)
+            # Fetch all edges
+            edge_rows = conn.execute("SELECT source_id, target_id, relation_type, metadata FROM edges").fetchall()
+            links = []
+            for row in edge_rows:
+                link = {
+                    "source": row[0],
+                    "target": row[1],
+                    "relation": row[2],
+                }
+                links.append(link)
+            conn.close()
             graph = {
-                "nodes": [
-                    {"id": "file1.py", "group": "file"},
-                    {"id": "file2.py", "group": "file"},
-                    {"id": "ClassA", "group": "class"},
-                    {"id": "func_a", "group": "function"},
-                    {"id": "func_b", "group": "function"},
-                ],
-                "links": [
-                    {"source": "file1.py", "target": "ClassA"},
-                    {"source": "ClassA", "target": "func_a"},
-                    {"source": "file2.py", "target": "func_b"},
-                    {"source": "func_a", "target": "func_b"},
-                ],
+                "nodes": nodes,
+                "links": links,
             }
             return jsonify(graph)
     
