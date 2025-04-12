@@ -72,6 +72,16 @@ const QueryPage: React.FC = () => {
   return (
     <div>
       <h1>Query</h1>
+      <div style={{ background: '#f8f9fa', border: '1px solid #ddd', borderRadius: '6px', padding: '0.75rem', marginBottom: '1rem', fontSize: '0.98rem' }}>
+        <strong>Tips for best results:</strong>
+        <ul style={{ margin: '0.5em 0 0 1.2em', padding: 0 }}>
+          <li>Use function or class names if you know them (e.g., <code>process_documents</code>).</li>
+          <li>Paste a code snippet or line for precise matches.</li>
+          <li>Try searching with docstring or comment text.</li>
+          <li>Describe what the code does in plain English if unsure.</li>
+          <li>Adjust "Results" and "Min Score" for more or fewer matches.</li>
+        </ul>
+      </div>
       <div style={{ marginBottom: '1rem' }}>
         <input
           type="text"
