@@ -36,29 +36,7 @@ LANGUAGE_GRAMMARS = {
 }
 
 # Map of file extensions to language names
-EXTENSION_TO_LANGUAGE = {
-    ".py": "python",
-    ".js": "javascript",
-    ".jsx": "jsx",
-    ".ts": "typescript",
-    ".tsx": "tsx",
-    ".html": "html",
-    ".htm": "html",
-    ".css": "css",
-    ".java": "java",
-    ".c": "c",
-    ".h": "c",
-    ".cpp": "cpp",
-    ".hpp": "cpp",
-    ".cc": "cpp",
-    ".cxx": "cpp",
-    ".go": "go",
-    ".rs": "rust",
-    ".rb": "ruby",
-    ".php": "php",
-    ".cs": "c_sharp",
-    ".sh": "bash",
-}
+from indexer.language_map import EXTENSION_TO_LANGUAGE
 
 class TreeSitterManager:
     """Manager for Tree-sitter languages and parsers"""

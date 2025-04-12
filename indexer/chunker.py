@@ -676,20 +676,21 @@ class ChunkingStrategyFactory:
         """
         # Get file extension
         ext = get_file_extension(file_path)
-        
+
         # Get language configuration
         languages_config = self.config.get("languages", {})
-        
-        # Find the language by extension
+
+        # Find the language by extension in config
         for lang, lang_config in languages_config.items():
             extensions = lang_config.get("extensions", [])
             if ext in extensions:
                 # Get chunking strategy
                 strategy_name = lang_config.get("chunking_strategy", "sliding_window")
                 return self._create_strategy(strategy_name)
-        
-        # Default strategies based on extension
-        if ext in [".py", ".js", ".jsx", ".ts", ".tsx", ".java", ".cs", ".go", ".rb", ".php"]:
+
+        # Use dynamic extension-to-language mapping for AST chunking
+        from indexer.language_map import EXTENSION_TO_LANGUAGE
+        if ext in EXTENSION_TO_LANGUAGE:
             return self.ast_strategy
         elif ext in [".json"]:
             return self.json_strategy
