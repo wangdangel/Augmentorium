@@ -120,3 +120,18 @@ export async function reindexSpecificProject(projectName: string): Promise<boole
   }
   return res.ok;
 }
+
+export async function reinitializeProject(projectName: string): Promise<boolean> {
+  console.log('[reinitializeProject] Request: POST /api/projects/' + encodeURIComponent(projectName) + '/reinitialize');
+  const res = await fetch(`/api/projects/${encodeURIComponent(projectName)}/reinitialize`, {
+    method: 'POST',
+  });
+  console.log('[reinitializeProject] Response status:', res.status);
+  try {
+    const data = await res.json();
+    console.log('[reinitializeProject] Response body:', data);
+  } catch (e) {
+    console.log('[reinitializeProject] No JSON response or error:', e);
+  }
+  return res.ok;
+}

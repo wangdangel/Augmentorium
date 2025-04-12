@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Project, reindexSpecificProject } from '../api/projects';
+import { Project, reindexSpecificProject, reinitializeProject } from '../api/projects';
 
 interface ProjectListProps {
   projects: Project[];
@@ -11,6 +11,7 @@ interface ProjectListProps {
 const ProjectList: React.FC<ProjectListProps> = ({ projects, activeProjectName, onRemove, onSetActive }) => {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [settingActive, setSettingActive] = useState<string | null>(null);
+  const [reinitializing, setReinitializing] = useState<string | null>(null);
 
   const activeStyle: React.CSSProperties = {
     border: '3px solid #4CAF50',
@@ -89,6 +90,27 @@ const ProjectList: React.FC<ProjectListProps> = ({ projects, activeProjectName, 
               Reindex
             </button>
             <button
+              style={{ marginRight: '0.5rem', marginTop: '0.5rem' }}
+              onClick={async () => {
+                const confirmed = window.confirm(
+                  `WARNING: This will DELETE the entire .Augmentorium folder for project "${proj.name}" and all its contents.\n\nAll indexing data, caches, and related files will be permanently lost and reset as if the project was just added.\n\nThis action CANNOT be undone.\n\nAre you absolutely sure you want to reinitialize this project?`
+                );
+                if (!confirmed) return;
+                setReinitializing(proj.name);
+                const success = await reinitializeProject(proj.name);
+                if (success) {
+                  alert('Project reinitialized successfully');
+                } else {
+                  alert('Failed to reinitialize project');
+                }
+                setReinitializing(null);
+              }}
+              disabled={reinitializing === proj.name}
+            >
+              {reinitializing === proj.name ? 'Reinitializing...' : 'Reinitialize'}
+            </button>
+            <button
+              style={{ marginTop: '0.5rem' }}
               onClick={() => handleDelete(proj.name)}
               disabled={deleting === proj.name}
             >

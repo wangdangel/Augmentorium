@@ -5,7 +5,7 @@ Moved from indexer/watcher.py as part of modular refactor.
 
 import logging
 import pathspec
-from typing import Optional, List
+from typing import Optional
 from queue import Queue
 from watchdog.events import FileSystemEventHandler, FileSystemEvent
 
@@ -22,7 +22,7 @@ class ProjectEventHandler(FileSystemEventHandler):
         self,
         project_path: str,
         event_queue: Queue,
-        exclude_patterns: Optional[List[str]] = None,
+        config_manager,
         file_hasher: Optional[FileHasher] = None
     ):
         """
@@ -34,31 +34,24 @@ class ProjectEventHandler(FileSystemEventHandler):
             exclude_patterns: Patterns to exclude
             file_hasher: Optional file hasher for tracking changes
         """
+        from utils.ignore_utils import get_ignore_spec
         self.project_path = normalize_path(project_path)
         self.event_queue = event_queue
-        self.exclude_patterns = exclude_patterns or []
+        self.config_manager = config_manager
         self.file_hasher = file_hasher or FileHasher()
-        
-        # Add default exclude patterns for the Augmentorium directory
-        self.exclude_patterns.append("**/.augmentorium/**")
-        self.ignore_spec = pathspec.PathSpec.from_lines("gitwildmatch", self.exclude_patterns)
+        self.ignore_spec = get_ignore_spec(self.config_manager, self.project_path)
     
     def _should_exclude(self, path: str) -> bool:
         """
-        Check if a path should be excluded
-        
-        Args:
-            path: Path to check
-            
-        Returns:
-            bool: True if path should be excluded, False otherwise
+        Deprecated: Use should_ignore from utils.ignore_utils instead.
         """
-        rel_path = get_relative_path(path, self.project_path)
-        return self.ignore_spec.match_file(rel_path)
+        from utils.ignore_utils import should_ignore
+        return should_ignore(path, self.project_path, self.ignore_spec)
     
     def on_created(self, event: FileSystemEvent) -> None:
         """Handle file creation events"""
-        if self._should_exclude(event.src_path):
+        from utils.ignore_utils import should_ignore
+        if should_ignore(event.src_path, self.project_path, self.ignore_spec):
             return
         
         self.event_queue.put(FileEvent(
@@ -70,7 +63,8 @@ class ProjectEventHandler(FileSystemEventHandler):
     
     def on_modified(self, event: FileSystemEvent) -> None:
         """Handle file modification events"""
-        if self._should_exclude(event.src_path) or event.is_directory:
+        from utils.ignore_utils import should_ignore
+        if should_ignore(event.src_path, self.project_path, self.ignore_spec) or event.is_directory:
             return
         
         # Only process if file content has actually changed
@@ -86,7 +80,8 @@ class ProjectEventHandler(FileSystemEventHandler):
     
     def on_deleted(self, event: FileSystemEvent) -> None:
         """Handle file deletion events"""
-        if self._should_exclude(event.src_path):
+        from utils.ignore_utils import should_ignore
+        if should_ignore(event.src_path, self.project_path, self.ignore_spec):
             return
         
         # Remove from hash cache if using hasher
@@ -103,10 +98,9 @@ class ProjectEventHandler(FileSystemEventHandler):
     def on_moved(self, event: FileSystemEvent) -> None:
         """Handle file move events"""
         # Check source path
-        src_excluded = self._should_exclude(event.src_path)
-        
-        # Check destination path
-        dest_excluded = self._should_exclude(event.dest_path)
+        from utils.ignore_utils import should_ignore
+        src_excluded = should_ignore(event.src_path, self.project_path, self.ignore_spec)
+        dest_excluded = should_ignore(event.dest_path, self.project_path, self.ignore_spec)
         
         # Handle different cases
         if src_excluded and dest_excluded:

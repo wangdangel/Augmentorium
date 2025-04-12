@@ -215,8 +215,6 @@ class ProjectEventHandler(FileSystemEventHandler):
         self.exclude_patterns = exclude_patterns or []
         self.file_hasher = file_hasher or FileHasher()
         
-        # Add default exclude patterns for the Augmentorium directory
-        self.exclude_patterns.append("**/.augmentorium/**")
         self.ignore_spec = pathspec.PathSpec.from_lines("gitwildmatch", self.exclude_patterns)
     
     def _should_exclude(self, path: str) -> bool:
@@ -608,35 +606,28 @@ class FileWatcherService:
         for root, dirs, files in os.walk(project_path):
             # Apply ignore_spec to directories
             dirs_to_remove = []
+            from utils.ignore_utils import should_ignore
             for d in dirs:
                 dir_path = os.path.join(root, d)
-                # Use relative path from project root for matching
-                rel_path = get_relative_path(dir_path, project_path)
-                # Ensure consistent path separators for matching
-                rel_path_unix = rel_path.replace(os.sep, '/')
-                if ignore_spec.match_file(rel_path_unix):
-                    logger.debug(f"Skipping directory (ignore spec match): {rel_path}")
+                if should_ignore(dir_path, project_path, ignore_spec):
+                    logger.debug(f"Skipping directory (ignore spec match): {get_relative_path(dir_path, project_path)}")
                     dirs_to_remove.append(d)
                 else:
-                    logger.debug(f"Including directory: {rel_path}") # Log remains for visibility
+                    logger.debug(f"Including directory: {get_relative_path(dir_path, project_path)}") # Log remains for visibility
 
             # Modify dirs in place for os.walk
             for d in dirs_to_remove:
                 dirs.remove(d)
 
             # Process files
+            from utils.ignore_utils import should_ignore
             for file in files:
                 file_path = os.path.join(root, file)
-                # Use relative path from project root for matching
-                rel_path = get_relative_path(file_path, project_path)
-                # Ensure consistent path separators for matching
-                rel_path_unix = rel_path.replace(os.sep, '/')
-
-                if ignore_spec.match_file(rel_path_unix):
-                    logger.debug(f"Skipping file (ignore spec match): {rel_path}")
+                if should_ignore(file_path, project_path, ignore_spec):
+                    logger.debug(f"Skipping file (ignore spec match): {get_relative_path(file_path, project_path)}")
                     continue
                 else:
-                    logger.debug(f"Including file: {rel_path}") # Log remains for visibility
+                    logger.debug(f"Including file: {get_relative_path(file_path, project_path)}") # Log remains for visibility
                 
                 # Create event
                 events.append(FileEvent(

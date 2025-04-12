@@ -89,6 +89,7 @@ class ConfigManager:
             try:
                 with open(self.config_path, 'r') as f:
                     loaded_config = yaml.safe_load(f)
+                    print(f"DEBUG: loaded_config = {loaded_config}")
                     logger.debug(f"Loaded raw config from {self.config_path}: {loaded_config}")
                     if loaded_config:
                         # Deep update the default config with loaded values

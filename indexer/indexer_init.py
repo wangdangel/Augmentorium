@@ -30,15 +30,47 @@ class Indexer:
 
     def close(self):
         """Close all resources"""
+        import gc
         try:
+            if hasattr(self, "logger"):
+                self.logger.info("[CLOSE] Starting resource cleanup in indexer.")
             # Close vector DB if it has a close method
-            if hasattr(self.vector_db, "close"):
-                self.vector_db.close()
-        except Exception:
-            pass
+            if hasattr(self, "vector_db") and self.vector_db is not None:
+                if hasattr(self.vector_db, "close"):
+                    self.logger.info("[CLOSE] Calling vector_db.close()")
+                    self.vector_db.close()
+                # Explicitly dereference ChromaDB client if present
+                if hasattr(self.vector_db, "client"):
+                    self.logger.info("[CLOSE] Deleting vector_db.client reference")
+                    del self.vector_db.client
+                    self.vector_db.client = None
+                self.logger.info("[CLOSE] Deleting vector_db reference")
+                del self.vector_db
+                self.vector_db = None
+            # Force garbage collection
+            self.logger.info("[CLOSE] Forcing garbage collection")
+            gc.collect()
+            self.logger.info("[CLOSE] Resource cleanup complete")
+        except Exception as e:
+            if hasattr(self, "logger"):
+                self.logger.error(f"[CLOSE] Exception during resource cleanup: {e}")
+            else:
+                print(f"[CLOSE] Exception during resource cleanup: {e}")
         # TODO: Close graph DB connections if persistent (currently opened per operation)
         # TODO: Stop any file watchers if running
         # Placeholder for future cleanup logic
+
+    def pause(self):
+        """Pause the indexer by closing all resources (safe for .Augmentorium deletion)"""
+        self.close()
+
+    def resume(self):
+        """Resume the indexer by re-initializing the vector DB handle"""
+        try:
+            db_path = self.config_manager.get_db_path(self.project_path)
+            self.vector_db = VectorDB(db_path)
+        except Exception as e:
+            self.logger.error(f"Failed to resume vector DB: {e}")
 
     def __init__(
         self,
@@ -165,8 +197,14 @@ class Indexer:
 
         # Combine and deduplicate patterns
         combined_patterns = list(set(base_ignore_patterns + project_ignore_patterns))
+        # Ensure both .augmentorium and .Augmentorium are always ignored
+        augmentorium_patterns = ["**/.augmentorium/**", "**/.Augmentorium/**"]
+        for pattern in augmentorium_patterns:
+            if pattern not in combined_patterns:
+                combined_patterns.append(pattern)
+        self.logger.info(f"Final ignore patterns: {combined_patterns}")
         self.ignore_spec = pathspec.PathSpec.from_lines("gitwildmatch", combined_patterns)
-        self.logger.info(f"Initialized with {len(combined_patterns)} combined ignore patterns.")
+        self.logger.info(f"Initialized with {len(combined_patterns)} combined ignore patterns (including .augmentorium and .Augmentorium).")
 
         # Initialize file hasher and load cache from project's metadata directory
         metadata_dir = self.config_manager.get_metadata_path(self.project_path)
@@ -400,6 +438,7 @@ class IndexerService:
         os.makedirs(cache_dir, exist_ok=True) # Ensure it exists
 
         self.file_watcher = FileWatcherService(
+            config_manager,
             polling_interval=indexer_config.get("polling_interval", 1.0),
             hash_algorithm=indexer_config.get("hash_algorithm", "md5"),
             cache_dir=cache_dir,
@@ -410,6 +449,16 @@ class IndexerService:
         self.check_thread = None
         
         logger.info("Initialized indexer service")
+
+    def pause(self):
+        """Pause all managed indexers (release DB/file handles)"""
+        for idx in self.indexers.values():
+            idx.pause()
+
+    def resume(self):
+        """Resume all managed indexers (re-establish DB/file handles)"""
+        for idx in self.indexers.values():
+            idx.resume()
     
     def add_project(self, project_path: str) -> bool:
         """
@@ -422,6 +471,7 @@ class IndexerService:
             bool: True if successful, False otherwise
         """
         try:
+            logger.info(f"Attempting to add project: {project_path}")
             project_path = os.path.abspath(project_path)
             
             # Check if project already exists
@@ -430,7 +480,9 @@ class IndexerService:
                 return False
             
             # Initialize indexer
+            logger.info(f"Initializing Indexer for: {project_path}")
             indexer = Indexer(self.config_manager, project_path)
+            logger.info(f"Successfully initialized Indexer for: {project_path}")
             self.indexers[project_path] = indexer
 
             # --- Combine ignore patterns for FileWatcher ---
@@ -456,6 +508,7 @@ class IndexerService:
             self.file_watcher.add_project(project_path, combined_patterns)
 
             logger.info(f"Added project to index: {project_path} with {len(combined_patterns)} ignore patterns.")
+            logger.info(f"Finished add_project for: {project_path}")
             
             # Perform initial indexing
             if self.running:
@@ -694,6 +747,107 @@ def start_indexer(
     # Start service
     service.start()
     
+# --- Flask API for pause/resume endpoints ---
+from flask import Flask, jsonify
+
+api_app = Flask("indexer_api")
+
+@api_app.route("/pause", methods=["POST"])
+def pause_indexer():
+    global indexer_service_instance
+    if indexer_service_instance is not None:
+        indexer_service_instance.pause()
+        return jsonify({"status": "paused"}), 200
+    return jsonify({"error": "Indexer service not running"}), 500
+
+@api_app.route("/resume", methods=["POST"])
+def resume_indexer():
+    global indexer_service_instance
+    if indexer_service_instance is not None:
+        indexer_service_instance.resume()
+        return jsonify({"status": "resumed"}), 200
+    return jsonify({"error": "Indexer service not running"}), 500
+@api_app.route('/reindex', methods=['POST'])
+def trigger_reindex():
+    from flask import request, jsonify
+    import threading
+    global indexer_service_instance
+    data = request.json
+    project_name = data.get('project_name')
+    if not project_name:
+        return jsonify({"error": "Missing project_name"}), 400
+    if indexer_service_instance is None:
+        return jsonify({"error": "Indexer service not running"}), 500
+
+    # Try to find the Indexer instance for the given project_name
+    # Map project_name to project_path by matching Indexer.project_name
+    target_indexer = None
+    for idx in indexer_service_instance.indexers.values():
+        if getattr(idx, "project_name", None) == project_name:
+            target_indexer = idx
+            break
+
+    if not target_indexer:
+        return jsonify({"error": f"Project '{project_name}' not found"}), 404
+
+    def do_reindex():
+        try:
+            processed = target_indexer.full_index()
+            print(f"[API] Reindex completed for project: {project_name} ({processed} files processed)")
+        except Exception as e:
+            print(f"[API] Reindex failed for project: {project_name}: {e}")
+
+    threading.Thread(target=do_reindex, daemon=True).start()
+    print(f"[API] Reindex triggered for project: {project_name}")
+    return jsonify({"status": "reindex triggered", "project": project_name})
+
+# --- Entry point for starting indexer and API server ---
+indexer_service_instance = None
+
+def start_indexer(
+    config: ConfigManager,
+    project_paths: Optional[List[str]] = None
+) -> IndexerService:
+    """
+    Start the indexer service
+    
+    Args:
+        config: Configuration manager
+        project_paths: List of project paths to index
+    
+    Returns:
+        IndexerService: Indexer service
+    """
+    global indexer_service_instance
+    # Create indexer service
+    service = IndexerService(config)
+    indexer_service_instance = service
+    
+    # Add projects
+    if project_paths:
+        for path in project_paths:
+            service.add_project(path)
+    else:
+        # Add all registered projects
+        projects_dict = config.get_all_projects()
+        config.reload()
+        projects_dict = config.get_all_projects()
+        logger.info(f"DEBUG: get_all_projects() after reload returned: {projects_dict}")
+        if not projects_dict:
+            projects_dict = {}
+        for project_name, project_path in projects_dict.items():
+            service.add_project(project_path)
+    
+    # Start service
+    service.start()
+
+    # Start Flask API in a background thread
+    import threading
+    host = config.config.get("indexer", {}).get("host", "localhost")
+    port = config.config.get("indexer", {}).get("port", 6656)
+    threading.Thread(target=api_app.run, kwargs={"host": host, "port": port}, daemon=True).start()
+    
+    return service
     return service
 
 

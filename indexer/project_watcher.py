@@ -5,7 +5,7 @@ Moved from indexer/watcher.py as part of modular refactor.
 
 import os
 import logging
-from typing import Optional, List
+from typing import Optional
 from queue import Queue
 from watchdog.observers import Observer
 
@@ -22,7 +22,7 @@ class ProjectWatcher:
         self,
         project_path: str,
         event_queue: Queue,
-        exclude_patterns: Optional[List[str]] = None,
+        config_manager,
         polling_interval: float = 1.0,
         hash_algorithm: str = "md5",
         cache_dir: Optional[str] = None
@@ -33,14 +33,14 @@ class ProjectWatcher:
         Args:
             project_path: Path to the project
             event_queue: Queue for events
-            exclude_patterns: Patterns to exclude
+            config_manager: ConfigManager instance
             polling_interval: Interval for polling (seconds)
             hash_algorithm: Hash algorithm for file change detection
             cache_dir: Directory for hash cache
         """
         self.project_path = normalize_path(project_path)
         self.event_queue = event_queue
-        self.exclude_patterns = exclude_patterns or []
+        self.config_manager = config_manager
         self.polling_interval = polling_interval
         
         # Initialize file hasher
@@ -58,7 +58,7 @@ class ProjectWatcher:
         self.handler = ProjectEventHandler(
             project_path=self.project_path,
             event_queue=self.event_queue,
-            exclude_patterns=self.exclude_patterns,
+            config_manager=self.config_manager,
             file_hasher=self.file_hasher
         )
         

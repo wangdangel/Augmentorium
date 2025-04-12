@@ -21,6 +21,7 @@ class FileWatcherService:
     
     def __init__(
         self,
+        config_manager,
         polling_interval: float = 1.0,
         hash_algorithm: str = "md5",
         cache_dir: Optional[str] = None,
@@ -30,11 +31,13 @@ class FileWatcherService:
         Initialize the file watcher service
         
         Args:
+            config_manager: ConfigManager instance
             polling_interval: Interval for polling (seconds)
             hash_algorithm: Hash algorithm for file change detection
             cache_dir: Directory for hash cache
             event_callback: Callback for file events
         """
+        self.config_manager = config_manager
         self.polling_interval = polling_interval
         self.hash_algorithm = hash_algorithm
         self.cache_dir = cache_dir
@@ -56,15 +59,14 @@ class FileWatcherService:
     
     def add_project(
         self,
-        project_path: str,
-        exclude_patterns: Optional[List[str]] = None
+        project_path: str
     ) -> bool:
         """
         Add a project to watch
         
         Args:
             project_path: Path to the project
-            exclude_patterns: Patterns to exclude
+            (removed) exclude_patterns: Patterns to exclude
             
         Returns:
             bool: True if successful, False otherwise
@@ -94,7 +96,7 @@ class FileWatcherService:
             watcher = ProjectWatcher(
                 project_path=project_path,
                 event_queue=self.event_queue,
-                exclude_patterns=exclude_patterns,
+                config_manager=self.config_manager,
                 polling_interval=self.polling_interval,
                 hash_algorithm=self.hash_algorithm,
                 cache_dir=project_cache_dir
@@ -226,28 +228,26 @@ class FileWatcherService:
         for root, dirs, files in os.walk(project_path):
             # Apply ignore_spec to directories
             dirs_to_remove = []
+            from utils.ignore_utils import should_ignore
             for d in dirs:
                 dir_path = os.path.join(root, d)
-                rel_path = os.path.relpath(dir_path, project_path)
-                rel_path_unix = rel_path.replace(os.sep, '/')
-                if ignore_spec.match_file(rel_path_unix):
-                    logger.debug(f"Skipping directory (ignore spec match): {rel_path}")
+                if should_ignore(dir_path, project_path, ignore_spec):
+                    logger.debug(f"Skipping directory (ignore spec match): {os.path.relpath(dir_path, project_path)}")
                     dirs_to_remove.append(d)
                 else:
-                    logger.debug(f"Including directory: {rel_path}")
+                    logger.debug(f"Including directory: {os.path.relpath(dir_path, project_path)}")
             for d in dirs_to_remove:
                 dirs.remove(d)
 
             # Process files
             for file in files:
                 file_path = os.path.join(root, file)
-                rel_path = os.path.relpath(file_path, project_path)
-                rel_path_unix = rel_path.replace(os.sep, '/')
-                if ignore_spec.match_file(rel_path_unix):
-                    logger.debug(f"Skipping file (ignore spec match): {rel_path}")
+                from utils.ignore_utils import should_ignore
+                if should_ignore(file_path, project_path, ignore_spec):
+                    logger.debug(f"Skipping file (ignore spec match): {os.path.relpath(file_path, project_path)}")
                     continue
                 else:
-                    logger.debug(f"Including file: {rel_path}")
+                    logger.debug(f"Including file: {os.path.relpath(file_path, project_path)}")
                 events.append(FileEvent(
                     event_type="created",
                     file_path=file_path,

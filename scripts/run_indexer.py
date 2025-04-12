@@ -42,7 +42,8 @@ def main():
                       default="INFO", help="Set the logging level")
     args = parser.parse_args()
     
-    config_path = os.path.abspath(args.config or "../config.yaml")
+    config_path = os.path.abspath(args.config or "config.yaml")
+    print(f"DEBUG: Using config_path = {config_path}")
     # Load configuration first
     config = ConfigManager(config_path)
     
