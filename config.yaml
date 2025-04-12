@@ -4,7 +4,7 @@ general:
 projects:
   aaaaa: K:\Documents\aaaaa
   new_project: K:\Documents\new_project
-active_project: aaaaa
+active_project: new_project
 indexer:
   polling_interval: 1.0
   max_workers: 4

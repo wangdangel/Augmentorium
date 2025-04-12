@@ -14,7 +14,7 @@ from typing import Dict, List, Optional, Any, Set, Tuple, Iterator, Union
 from tqdm import tqdm
 from utils.text_preprocessing import preprocess_text
 
-from indexer.chunker import CodeChunk
+from indexer.code_chunk import CodeChunk
 from utils.db_utils import VectorDB
 from utils.graph_db import get_connection, insert_or_update_node, insert_edge
 

@@ -1,3 +1,6 @@
+# NOTE: This file has been modularized into separate modules (file_hasher.py, file_event.py, event_handler.py, project_watcher.py, watcher_service.py)
+# and is pending removal after migration is validated.
+
 """
 File system watcher for Augmentorium
 """

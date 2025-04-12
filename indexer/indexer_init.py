@@ -16,8 +16,11 @@ from config.defaults import PROJECT_INTERNAL_DIR_NAME, DEFAULT_LOG_DIR # Ensure 
 from utils.db_utils import VectorDB
 from utils.logging import ProjectLogger
 from utils.path_utils import get_path_hash_key # Import the missing function
-from indexer.watcher import FileWatcherService, FileEvent, FileHasher
-from indexer.chunker import Chunker, CodeChunk
+from indexer.watcher_service import FileWatcherService
+from indexer.file_event import FileEvent
+from indexer.file_hasher import FileHasher
+from indexer.chunker import Chunker
+from indexer.code_chunk import CodeChunk
 from indexer.embedder import OllamaEmbedder, ChunkEmbedder, ChunkProcessor
 
 logger = logging.getLogger(__name__)
