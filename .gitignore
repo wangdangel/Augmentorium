@@ -19,3 +19,8 @@ __pycache__/
 *.tox/
 
 */.augmentorium
+
+# NPM artifacts
+node_modules/
+npm-debug.log
+yarn-error.log
