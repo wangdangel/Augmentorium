@@ -50,6 +50,7 @@ class APIServer:
         query_processor,
         relationship_enricher,
         context_builder,
+        indexer_status,
         host: str = "localhost",
         port: int = 6655
     ):
@@ -72,15 +73,24 @@ class APIServer:
         self.host = host
         self.port = port
 
+        self.indexer_status = indexer_status
+
         # Lock for project component reloads and query safety
         self._project_lock = threading.Lock()
         
         # Initialize Flask app
         self.app = Flask("augmentorium")
         self.app.config_manager = config_manager
+        self.app.query_processor = query_processor
+        self.app.relationship_enricher = relationship_enricher
+        self.app.context_builder = context_builder
         
         # Set up routes
         # Register Blueprints
+
+        # Ensure both blueprints share the same status object
+        from server.api.api_indexer import init_indexer_blueprint
+        init_indexer_blueprint(self.indexer_status)
         init_projects_blueprint(self.config_manager, self.indexer_status)
         self.app.register_blueprint(projects_bp)
         self.app.register_blueprint(documents_bp)

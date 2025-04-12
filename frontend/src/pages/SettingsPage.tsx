@@ -7,7 +7,7 @@ const SettingsPage: React.FC = () => {
 
   const fetchStatus = async () => {
     try {
-      const res = await fetch('/api/health');
+      const res = await fetch('/api/health/');
       if (res.ok) {
         const data = await res.json();
         setStatus(data.status);

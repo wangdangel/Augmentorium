@@ -592,7 +592,7 @@ class IndexerService:
                 }
 
                 # Send POST to backend API
-                _requests.post("http://localhost:6655/api/indexer_status", json=payload, timeout=2)
+                _requests.post("http://localhost:6655/api/indexer/status", json=payload, timeout=2)
             except Exception:
                 pass  # Ignore errors for now
 

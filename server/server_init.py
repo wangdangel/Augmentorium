@@ -8,7 +8,7 @@ import threading
 from typing import Dict, List, Optional, Any, Tuple
 
 from config.manager import ConfigManager
-from server.api import APIServer
+from server.api_server import APIServer
 from server.query import QueryProcessor, RelationshipEnricher, ContextBuilder
 from utils.db_utils import VectorDB
 from indexer.embedder import OllamaEmbedder
@@ -80,12 +80,16 @@ def start_api_server(
             max_context_size=config.config.get("chunking", {}).get("max_chunk_size", 1024)
         )
         
+        # Create shared indexer status object
+        indexer_status = {}
+
         # Create API server
         api_server = APIServer(
             config_manager=config,
             query_processor=query_processor,
             relationship_enricher=relationship_enricher,
             context_builder=context_builder,
+            indexer_status=indexer_status,
             host=host,
             port=port
         )

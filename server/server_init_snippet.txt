@@ -1,0 +1,9 @@
+# Add this to your server/server_init.py (or api_server.py) after creating the shared indexer_status object:
+
+from server.api.api_indexer import indexer_bp, init_indexer_blueprint
+
+# ... after indexer_status = {} is created:
+init_indexer_blueprint(indexer_status)
+
+# ... then register the blueprint as usual:
+app.register_blueprint(indexer_bp)

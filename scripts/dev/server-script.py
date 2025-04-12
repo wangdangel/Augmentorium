@@ -17,7 +17,7 @@ sys.path.insert(0, root_dir)
 from config.manager import ConfigManager
 from utils.logging import setup_logging
 from server.mcp import MCPServer, MCPService
-from server.api import APIServer
+from server.api_server import APIServer
 
 def main():
     """Main entry point for development server"""

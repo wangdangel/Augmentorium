@@ -30,7 +30,7 @@ const QueryPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/query', {
+      const res = await fetch('/api/query/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

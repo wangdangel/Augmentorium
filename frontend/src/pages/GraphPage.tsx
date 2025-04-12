@@ -35,7 +35,7 @@ const GraphPage: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch('/api/graph');
+        const res = await fetch('/api/graph/');
         if (!res.ok) throw new Error('Failed to fetch graph data');
         const data = await res.json();
         setGraphData(data);

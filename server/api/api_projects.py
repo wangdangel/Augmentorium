@@ -103,9 +103,24 @@ def add_project():
             # Find the final name, using the initial guess as fallback
             final_name = next((name for name, path in updated_projects.items() if path == os.path.abspath(cleaned_path)), final_name)
 
+            # Trigger reindexing for the new project
+            import requests
+            try:
+                resp = requests.post(
+                    "http://localhost:5001/reindex",
+                    json={"project_name": final_name},
+                    timeout=2
+                )
+                if resp.ok:
+                    reindex_msg = " and reindex triggered."
+                else:
+                    reindex_msg = f" but failed to trigger reindex: {resp.text}"
+            except Exception as e:
+                reindex_msg = f" but failed to trigger reindex: {e}"
+
             return jsonify({
                 "status": "success",
-                "message": f"Project '{final_name}' initialized successfully at '{cleaned_path}'."
+                "message": f"Project '{final_name}' initialized successfully at '{cleaned_path}'{reindex_msg}"
             })
         else:
             return jsonify({"status": "error", "message": f"Failed to initialize project at '{cleaned_path}'."}), 500
@@ -141,7 +156,23 @@ def reindex_project(project_name):
     try:
         if os.path.exists(hash_cache_file):
             os.remove(hash_cache_file)
-        return jsonify({"status": "success", "message": f"Reindex triggered for project {project_name}"})
+        # Notify the indexer process to trigger reindexing
+        import requests
+        try:
+            indexer_host = config_manager.config.get("indexer", {}).get("host", "localhost")
+            indexer_port = config_manager.config.get("indexer", {}).get("port", 6656)
+            indexer_url = f"http://{indexer_host}:{indexer_port}/reindex"
+            resp = requests.post(
+                indexer_url,
+                json={"project_name": project_name},
+                timeout=2
+            )
+            if resp.ok:
+                return jsonify({"status": "success", "message": f"Reindex triggered for project {project_name}"})
+            else:
+                return jsonify({"status": "error", "message": f"Failed to notify indexer: {resp.text}"}), 500
+        except Exception as e:
+            return jsonify({"status": "error", "message": f"Failed to notify indexer: {e}"}), 500
     except Exception as e:
         return jsonify({"error": f"Failed to trigger reindex: {e}"}), 500
 

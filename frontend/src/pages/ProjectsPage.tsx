@@ -33,8 +33,37 @@ const ProjectsPage: React.FC = () => {
     }
   };
 
+  // Poll only status, size, lastIndexed fields every 5s, without setting loading
+  const refreshProjectStatuses = async () => {
+    try {
+      const data = await fetchProjects();
+      setProjects((prevProjects) => {
+        // Map by name for quick lookup
+        const dataMap = new Map(data.map(p => [p.name, p]));
+        return prevProjects.map((proj) => {
+          const updated = dataMap.get(proj.name);
+          if (updated) {
+            return {
+              ...proj,
+              status: updated.status,
+              size: updated.size,
+              lastIndexed: updated.lastIndexed,
+            };
+          }
+          return proj;
+        });
+      });
+    } catch (e) {
+      // Silent fail for background refresh
+    }
+  };
+
   useEffect(() => {
     loadProjects();
+    const interval = setInterval(() => {
+      refreshProjectStatuses();
+    }, 5000); // Poll every 5 seconds
+    return () => clearInterval(interval);
   }, []);
 
   const handleAdd = async (path: string, name?: string) => {
