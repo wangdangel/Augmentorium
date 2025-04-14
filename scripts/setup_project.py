@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Now we can import from the augmentorium package
 from config.manager import ConfigManager
 from utils.logging import setup_logging
+from config.defaults import PROJECT_INTERNAL_DIR_NAME
 
 def main():
     """Main entry point for setting up a project"""
@@ -38,10 +39,10 @@ def main():
     success = config_manager.initialize_project(args.project_path, args.name)
     
     if success:
-        # Additional setup: create .augmentorium and initialize graph DB
+        # Additional setup: create .Augmentorium and initialize graph DB
         try:
             project_root = os.path.abspath(args.project_path)
-            augmentorium_dir = os.path.join(project_root, ".augmentorium")
+            augmentorium_dir = os.path.join(project_root, PROJECT_INTERNAL_DIR_NAME)
             os.makedirs(augmentorium_dir, exist_ok=True)
 
             # Vector DB directory (if not already created)
@@ -80,7 +81,7 @@ def main():
                 conn.close()
                 logger.info(f"Graph database initialized at {graph_db_path}")
         except Exception as e:
-            logger.warning(f"Failed to initialize .augmentorium or graph DB: {e}")
+            logger.warning(f"Failed to initialize .Augmentorium or graph DB: {e}")
 
         logger.info("Project setup complete!")
         print(f"Project setup complete: {args.project_path}")

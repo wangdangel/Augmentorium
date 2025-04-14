@@ -1,17 +1,16 @@
 general:
-  log_dir: C:\Users\leviw/.augmentorium/logs
+  log_dir: logs
   log_level: INFO
 projects:
-  aaaaa: K:\Documents\aaaaa
-  icecrawl: K:\Documents\icecrawl
-active_project: icecrawl
+  ice: K:\Documents\icecrawl
+active_project: blank
 indexer:
   polling_interval: 1.0
   max_workers: 4
   hash_algorithm: md5
   ignore_patterns:
   - .git
-  - .augmentorium
+  - .Augmentorium
   - .qodo
   - .venv
   - .mypy_cache
@@ -27,7 +26,7 @@ indexer:
   - old_code
   - .husky
   - '**/.git/**'
-  - '**/.augmentorium/**'
+  - '**/.Augmentorium/**'
   - '**/.qodo/**'
   - '**/.venv/**'
   - '**/.mypy_cache/**'

@@ -16,7 +16,7 @@ config = ConfigManager()
 ollama_config = config.config.get("ollama", {})
 EMBEDDING_MODEL = ollama_config.get("embedding_model", "bge-m3:latest")
 PROJECT_ROOT = r"K:\\Documents\\icecrawl"
-DB_PATH = os.path.join(PROJECT_ROOT, ".augmentorium", "chroma")
+DB_PATH = os.path.join(PROJECT_ROOT, ".Augmentorium", "chroma")
 COLLECTION_NAME = "code_chunks"
 
 # Use the full text of the first document in the vector DB as the test input

@@ -5,7 +5,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from utils.db_utils import VectorDB
 
 project_root = r"K:\Documents\icecrawl"
-db_path = os.path.join(project_root, ".augmentorium", "chroma")
+db_path = os.path.join(project_root, ".Augmentorium", "chroma")
 
 vector_db = VectorDB(db_path)
 

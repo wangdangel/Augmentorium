@@ -40,5 +40,5 @@ def init_graph_db(db_path):
 
 if __name__ == "__main__":
     # Example: initialize graph DB for a project
-    graph_db_path = r"K:\Documents\icecrawl\.augmentorium\code_graph.db"
+    graph_db_path = r"K:\Documents\icecrawl\.Augmentorium\code_graph.db"
     init_graph_db(graph_db_path)

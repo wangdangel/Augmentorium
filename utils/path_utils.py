@@ -226,7 +226,7 @@ def get_project_root(file_path: str) -> Optional[str]:
         'Gemfile',
         'pom.xml',
         'build.gradle',
-        '.augmentorium'
+        '.Augmentorium'
     ]
     
     # Go up the directory tree

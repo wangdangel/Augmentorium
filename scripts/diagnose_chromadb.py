@@ -2,7 +2,7 @@ import chromadb
 
 def main():
     # Connect to local ChromaDB
-    client = chromadb.PersistentClient(path="K:/Documents/icecrawl/.augmentorium/chroma")
+    client = chromadb.PersistentClient(path="K:/Documents/icecrawl/.Augmentorium/chroma")
     
     collections = client.list_collections()
     if not collections:

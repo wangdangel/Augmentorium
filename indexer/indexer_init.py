@@ -197,14 +197,14 @@ class Indexer:
 
         # Combine and deduplicate patterns
         combined_patterns = list(set(base_ignore_patterns + project_ignore_patterns))
-        # Ensure both .augmentorium and .Augmentorium are always ignored
-        augmentorium_patterns = ["**/.augmentorium/**", "**/.Augmentorium/**"]
+        # Ensure .Augmentorium is always ignored
+        augmentorium_patterns = ["**/.Augmentorium/**"]
         for pattern in augmentorium_patterns:
             if pattern not in combined_patterns:
                 combined_patterns.append(pattern)
         self.logger.info(f"Final ignore patterns: {combined_patterns}")
         self.ignore_spec = pathspec.PathSpec.from_lines("gitwildmatch", combined_patterns)
-        self.logger.info(f"Initialized with {len(combined_patterns)} combined ignore patterns (including .augmentorium and .Augmentorium).")
+        self.logger.info(f"Initialized with {len(combined_patterns)} combined ignore patterns (including .Augmentorium).")
 
         # Initialize file hasher and load cache from project's metadata directory
         metadata_dir = self.config_manager.get_metadata_path(self.project_path)
