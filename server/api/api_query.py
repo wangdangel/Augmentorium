@@ -11,9 +11,16 @@ def process_query():
     Requires: config_manager, query_processor, relationship_enricher, context_builder on current_app.
     """
     config_manager = getattr(current_app, "config_manager", None)
-    query_processor = getattr(current_app, "query_processor", None)
-    relationship_enricher = getattr(current_app, "relationship_enricher", None)
-    context_builder = getattr(current_app, "context_builder", None)
+    mcp_server = getattr(current_app, "mcp_server", None)
+    if not mcp_server:
+        return jsonify({"error": "Server internal error: MCP Server not accessible"}), 500
+    
+    query_processor = mcp_server.query_processor
+    relationship_enricher = mcp_server.relationship_enricher
+    context_builder = mcp_server.context_builder
+    
+    if not query_processor or not relationship_enricher or not context_builder:
+        return jsonify({"error": "Server internal error: Query components not initialized"}), 500
 
     data = request.json
     if not data or "query" not in data:
@@ -53,6 +60,13 @@ def clear_cache():
     Clear query cache.
     Requires: config_manager, query_processor on current_app.
     """
-    query_processor = getattr(current_app, "query_processor", None)
+    mcp_server = getattr(current_app, "mcp_server", None)
+    if not mcp_server:
+        return jsonify({"error": "Server internal error: MCP Server not accessible"}), 500
+    
+    query_processor = mcp_server.query_processor
+    if not query_processor:
+        return jsonify({"error": "Server internal error: QueryProcessor not initialized"}), 500
+    
     query_processor.clear_cache()
     return jsonify({"status": "success", "message": "Query cache cleared"})

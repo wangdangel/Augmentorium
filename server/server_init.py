@@ -33,11 +33,14 @@ def start_api_server(
         Tuple[APIServer, threading.Thread]: API server and its thread
     """
     try:
-        logger.info("Starting Augmentorium API server")
+        logger.info("Starting Augmentorium API server with MCP")
         
         # Get server configuration
         server_config = config.config.get("server", {})
         host = server_config.get("host", "localhost")
+        
+        # Create MCPServer first
+        mcp_server = MCPServer(config_manager=config)
         
         # Build project database mapping and select active project dbs
         project_db_mapping = build_project_db_mapping(config)
@@ -73,22 +76,26 @@ def start_api_server(
             vector_db=vector_db,
             expander=query_expander,
             cache_size=server_config.get("cache_size", 100),
-            graph_db_path=graph_db_path
+            graph_db_path=graph_db_path,
+            project_db_mapping=project_db_mapping
         )
         relationship_enricher = RelationshipEnricher(vector_db)
         context_builder = ContextBuilder(
             max_context_size=config.config.get("chunking", {}).get("max_chunk_size", 1024)
         )
         
+        # Update MCPServer with initial components
+        mcp_server.query_processor = query_processor
+        mcp_server.relationship_enricher = relationship_enricher
+        mcp_server.context_builder = context_builder
+        
         # Create shared indexer status object
         indexer_status = {}
 
-        # Create API server
+        # Create API server with MCPServer reference
         api_server = APIServer(
             config_manager=config,
-            query_processor=query_processor,
-            relationship_enricher=relationship_enricher,
-            context_builder=context_builder,
+            mcp_server=mcp_server,
             indexer_status=indexer_status,
             host=host,
             port=port

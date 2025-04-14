@@ -25,7 +25,7 @@ def get_graph() -> Response:
     from utils.graph_db import get_connection
     import json
     # Get the active project path and graph DB path
-    project_path = config_manager.get_active_project_path()
+    project_path = config_manager.get_project_path(active_project)
     graph_db_path = config_manager.get_graph_db_path(project_path)
     conn = get_connection(graph_db_path)
     # Fetch all nodes

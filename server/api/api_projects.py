@@ -199,6 +199,20 @@ def set_active_project():
     if not data or "name" not in data:
         return jsonify({"error": "Missing project name"}), 400
 
+    project_name = data["name"]
+    if config_manager:
+        success = config_manager.set_active_project_name(project_name)
+        if success:
+            return jsonify({"status": "success", "message": f"Active project set to '{project_name}'"})
+        else:
+            all_projects = config_manager.get_all_projects()
+            if project_name not in all_projects:
+                return jsonify({"error": f"Project '{project_name}' not found."}), 404
+            else:
+                return jsonify({"error": f"Failed to set active project to '{project_name}'."}), 500
+    else:
+        return jsonify({"error": "Configuration manager not available"}), 500
+
 @projects_bp.route('/<project_name>/reinitialize', methods=['POST'])
 def reinitialize_project(project_name):
     print(f"[DEBUG] reinitialize_project called for project: {project_name}")
