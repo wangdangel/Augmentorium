@@ -15,6 +15,13 @@ from server.api.api_graph import graph_bp
 from server.api.api_cache import cache_bp
 from server.api.api_health import health_bp
 from server.api.api_indexer import indexer_bp
+from server.api.api_files import files_bp
+from server.api.api_chunks import chunks_bp
+from server.api.api_explain import explain_bp
+from server.api.api_graph_neighbors import graph_neighbors_bp
+from server.api.api_stats import stats_bp
+from server.api.api_health_llm_window import health_llm_window_bp
+from server.api.api_query_mcp import query_mcp_bp
 
 from config.manager import ConfigManager
 
@@ -86,6 +93,13 @@ class APIServer:
         self.app.register_blueprint(cache_bp)
         self.app.register_blueprint(health_bp)
         self.app.register_blueprint(indexer_bp)
+        self.app.register_blueprint(files_bp)
+        self.app.register_blueprint(chunks_bp)
+        self.app.register_blueprint(explain_bp)
+        self.app.register_blueprint(graph_neighbors_bp)
+        self.app.register_blueprint(stats_bp)
+        self.app.register_blueprint(health_llm_window_bp)
+        self.app.register_blueprint(query_mcp_bp)
         
         logger.info(f"Initialized API server on {host}:{port}")
 

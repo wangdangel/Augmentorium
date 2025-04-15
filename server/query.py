@@ -317,7 +317,9 @@ class RelationshipEnricher:
                     file_graph = []
                     for node in nodes:
                         node_id = node["id"]
+                        # print(f"DEBUG: About to call get_edges_for_node for node_id={node_id}")
                         edges = get_edges_for_node(conn, node_id)
+                        # print(f"DEBUG: Edges fetched for node_id '{node_id}': {edges}")
                         edge_info = []
                         for edge in edges:
                             target_node = get_node_by_id(conn, edge["target_id"])
@@ -399,6 +401,39 @@ class RelationshipEnricher:
             return list(related_files)
         except Exception as e:
             logger.error(f"Failed to get related files: {e}")
+            return []
+    
+    def get_neighbors(self, node_id: str) -> List[dict]:
+        """
+        Given a node ID, return its graph neighbors (callers, callees, imports, etc.)
+        Returns a list of dicts: {"relation_type": ..., "neighbor_id": ..., "neighbor_node": ...}
+        """
+        # print(f"DEBUG: get_neighbors called with node_id={node_id}")
+        if not self.graph_db_path:
+            logger.debug(f"No graph_db_path set in RelationshipEnricher for node_id={node_id}")
+            return []
+        try:
+            logger.info(f"[get_neighbors] node_id received: '{node_id}' (type: {type(node_id)})")
+            conn = get_connection(self.graph_db_path)
+            # print(f"DEBUG: About to call get_edges_for_node for node_id={node_id}")
+            edges = get_edges_for_node(conn, node_id)
+            # print(f"DEBUG: Edges fetched for node_id '{node_id}': {edges}")
+            logger.info(f"[get_neighbors] Edges fetched for node_id '{node_id}': {edges}")
+            neighbors = []
+            for edge in edges:
+                neighbor_id = edge["target_id"] if edge["source_id"] == node_id else edge["source_id"]
+                neighbor_node = get_node_by_id(conn, neighbor_id)
+                neighbors.append({
+                    "relation_type": edge["relation_type"],
+                    "neighbor_id": neighbor_id,
+                    "neighbor_node": neighbor_node
+                })
+            logger.info(f"[get_neighbors] Neighbors assembled for node_id '{node_id}': {neighbors}")
+            conn.close()
+            return neighbors
+        except Exception as e:
+            # print(f"EXCEPTION in get_neighbors for node_id={node_id}: {e}")
+            logger.error(f"Failed to get neighbors for node {node_id}: {e}")
             return []
 
 

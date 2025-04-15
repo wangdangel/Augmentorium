@@ -94,18 +94,18 @@ def initialize_graph_db(db_path):
 
 def get_edges_for_node(conn, node_id, relation_type=None):
     """
-    Returns a list of edges for a given node_id (as source), optionally filtered by relation_type.
+    Returns a list of edges for a given node_id (as source or target), optionally filtered by relation_type.
     Each edge is a dict with keys: source_id, target_id, relation_type, metadata (dict).
     """
     if relation_type:
         cursor = conn.execute(
-            "SELECT source_id, target_id, relation_type, metadata FROM edges WHERE source_id = ? AND relation_type = ?",
-            (node_id, relation_type)
+            "SELECT source_id, target_id, relation_type, metadata FROM edges WHERE (source_id = ? OR target_id = ?) AND relation_type = ?",
+            (node_id, node_id, relation_type)
         )
     else:
         cursor = conn.execute(
-            "SELECT source_id, target_id, relation_type, metadata FROM edges WHERE source_id = ?",
-            (node_id,)
+            "SELECT source_id, target_id, relation_type, metadata FROM edges WHERE source_id = ? OR target_id = ?",
+            (node_id, node_id)
         )
     edges = []
     for row in cursor.fetchall():
