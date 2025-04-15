@@ -118,16 +118,20 @@ def find_files(
     directory: str, 
     include_extensions: Optional[List[str]] = None,
     exclude_patterns: Optional[List[str]] = None,
-    max_depth: Optional[int] = None
+    max_depth: Optional[int] = None,
+    ignore_spec=None,
+    project_path: Optional[str] = None
 ) -> List[str]:
     """
-    Find files in a directory with optional filtering
+    Find files in a directory with optional filtering and robust ignore logic
     
     Args:
         directory: Directory to search
         include_extensions: Optional list of file extensions to include
         exclude_patterns: Optional list of glob patterns to exclude
         max_depth: Optional maximum directory depth to search
+        ignore_spec: Optional pathspec.PathSpec object for advanced ignore logic
+        project_path: Project root, required if using ignore_spec
         
     Returns:
         List[str]: List of matching file paths
@@ -141,36 +145,38 @@ def find_files(
             depth = root[len(directory):].count(os.sep)
             if depth >= max_depth:
                 dirs.clear()  # Don't go deeper
-        
-        # Apply exclude patterns to directories
-        if exclude_patterns:
-            dirs_to_remove = []
-            for d in dirs:
-                dir_path = os.path.join(root, d)
-                rel_path = os.path.relpath(dir_path, directory)
-                if matches_any_pattern(rel_path, exclude_patterns):
-                    dirs_to_remove.append(d)
-            
-            for d in dirs_to_remove:
-                dirs.remove(d)
-        
+        # Apply exclude patterns and ignore_spec to directories
+        dirs_to_remove = []
+        for d in dirs:
+            dir_path = os.path.join(root, d)
+            rel_path = os.path.relpath(dir_path, directory)
+            # Exclude by pattern or ignore_spec
+            if (exclude_patterns and matches_any_pattern(rel_path, exclude_patterns)) or \
+               (ignore_spec and project_path and \
+                __import__('utils.ignore_utils').ignore_utils.should_ignore(dir_path, project_path, ignore_spec)):
+                dirs_to_remove.append(d)
+        for d in dirs_to_remove:
+            dirs.remove(d)
         # Process files
         for file in files:
             file_path = os.path.join(root, file)
             rel_path = os.path.relpath(file_path, directory)
-            
             # Skip excluded files
-            if exclude_patterns and matches_any_pattern(rel_path, exclude_patterns):
+            if (exclude_patterns and matches_any_pattern(rel_path, exclude_patterns)) or \
+               (ignore_spec and project_path and \
+                __import__('utils.ignore_utils').ignore_utils.should_ignore(file_path, project_path, ignore_spec)):
                 continue
-            
-            # Check file extensions
+            # Check file extensions (only code files by default)
             if include_extensions:
                 _, ext = os.path.splitext(file)
                 if ext.lower() not in include_extensions:
                     continue
-            
+            else:
+                # Default: only code files
+                _, ext = os.path.splitext(file)
+                if ext.lower() not in ['.py', '.js', '.ts', '.jsx', '.tsx']:
+                    continue
             result.append(file_path)
-    
     return result
 
 def get_file_extension(path: str) -> str:

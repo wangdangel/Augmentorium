@@ -14,6 +14,7 @@ This module is designed to be well-documented and easy to extend.
 """
 
 import os
+from utils.db_utils import get_chroma_db_path
 
 def build_project_db_mapping(config_manager):
     """
@@ -34,8 +35,9 @@ def build_project_db_mapping(config_manager):
     for project in projects:
         name = project["name"]
         path = os.path.abspath(project["path"])
-        code_graph_db = os.path.join(path, "code_graph.db")
-        chroma_db = os.path.join(path, "chroma", "chroma.sqlite3")
+        augmentorium_dir = os.path.join(path, ".Augmentorium")
+        code_graph_db = os.path.join(augmentorium_dir, "code_graph.db")
+        chroma_db = get_chroma_db_path(path)
         db_paths = {
             "code_graph_db": code_graph_db,
             "chroma_db": chroma_db

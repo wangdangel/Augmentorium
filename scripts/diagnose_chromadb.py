@@ -1,8 +1,10 @@
 import chromadb
+from utils.db_utils import get_chroma_db_path
 
-def main():
+def main(project_path):
     # Connect to local ChromaDB
-    client = chromadb.PersistentClient(path="K:/Documents/icecrawl/.Augmentorium/chroma")
+    chroma_path = get_chroma_db_path(project_path)  # project_path must be defined or passed in
+    client = chromadb.PersistentClient(path=chroma_path)
     
     collections = client.list_collections()
     if not collections:
@@ -23,4 +25,4 @@ def main():
             print()
 
 if __name__ == "__main__":
-    main()
+    main(project_path)  # project_path must be defined or passed in

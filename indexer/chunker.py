@@ -72,6 +72,15 @@ class Chunker:
             # Add file info
             chunk.metadata.update(file_info)
 
-            # Add chunk index
+            # Add code relationships using tree-sitter
+            try:
+                from indexer.tree_sitter_relationships import extract_relationships_with_tree_sitter
+                relationships = extract_relationships_with_tree_sitter(chunk.file_path)
+                if relationships:
+                    chunk.metadata["references"] = relationships
+            except Exception as e:
+                # Log but don't break chunking if extraction fails
+                import logging
+                logging.getLogger(__name__).warning(f"Failed to extract relationships for {chunk.file_path}: {e}")
             chunk.metadata["chunk_index"] = i
             chunk.metadata["total_chunks"] = len(chunks)

@@ -8,9 +8,26 @@ def get_connection(db_path):
 
 def insert_or_update_node(conn, node):
     """
-    node: dict with keys id, type, name, file_path, start_line, end_line, metadata (dict)
+    node: dict with keys id, type, name, file_path, start_line, end_line, docstring, embedding_id, language, metadata (dict)
     """
-    metadata_json = json.dumps(node.get("metadata", {}))
+    import os
+    # Robust name logic: prefer 'name', then filename from file_path, then id
+    name = node.get("name")
+    if not name and node.get("file_path"):
+        name = os.path.basename(node["file_path"])
+    if not name:
+        name = node["id"]
+
+    # Always store embedding_id, language, docstring in metadata
+    metadata = dict(node.get("metadata", {}))
+    if node.get("embedding_id"):
+        metadata["embedding_id"] = node["embedding_id"]
+    if node.get("language"):
+        metadata["language"] = node["language"]
+    if node.get("docstring"):
+        metadata["docstring"] = node["docstring"]
+    metadata_json = json.dumps(metadata)
+
     conn.execute("""
     INSERT INTO nodes (id, type, name, file_path, start_line, end_line, metadata)
     VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -24,7 +41,7 @@ def insert_or_update_node(conn, node):
     """, (
         node["id"],
         node.get("type"),
-        node.get("name"),
+        name,
         node.get("file_path"),
         node.get("start_line"),
         node.get("end_line"),

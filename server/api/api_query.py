@@ -11,17 +11,15 @@ def process_query():
     Requires: config_manager, query_processor, relationship_enricher, context_builder on current_app.
     """
     config_manager = getattr(current_app, "config_manager", None)
-    mcp_server = getattr(current_app, "mcp_server", None)
-    if not mcp_server:
-        return jsonify({"error": "Server internal error: MCP Server not accessible"}), 500
-    
-    query_processor = mcp_server.query_processor
-    relationship_enricher = mcp_server.relationship_enricher
-    context_builder = mcp_server.context_builder
-    
+    query_processor = getattr(current_app, "query_processor", None)
+    relationship_enricher = getattr(current_app, "relationship_enricher", None)
+    context_builder = getattr(current_app, "context_builder", None)
+    # Debug logging for query_processor
+    import logging
+    logging.info(f"[DEBUG] query_processor: {query_processor} (type: {type(query_processor)})")
     if not query_processor or not relationship_enricher or not context_builder:
         return jsonify({"error": "Server internal error: Query components not initialized"}), 500
-
+    
     data = request.json
     if not data or "query" not in data:
         return jsonify({"error": "Missing query"}), 400
@@ -33,6 +31,8 @@ def process_query():
     include_metadata = data.get("include_metadata", True)
 
     # Thread safety for project reloads and queries is assumed to be handled at a higher level if needed
+    # Debug log before calling .query
+    logging.info(f"[DEBUG] About to call query_processor.query() with query_processor: {query_processor}")
     results = query_processor.query(
         query_text=query,
         n_results=n_results,
@@ -60,11 +60,7 @@ def clear_cache():
     Clear query cache.
     Requires: config_manager, query_processor on current_app.
     """
-    mcp_server = getattr(current_app, "mcp_server", None)
-    if not mcp_server:
-        return jsonify({"error": "Server internal error: MCP Server not accessible"}), 500
-    
-    query_processor = mcp_server.query_processor
+    query_processor = getattr(current_app, "query_processor", None)
     if not query_processor:
         return jsonify({"error": "Server internal error: QueryProcessor not initialized"}), 500
     

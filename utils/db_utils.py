@@ -20,8 +20,13 @@ class VectorDB:
         Initialize the vector database
         
         Args:
-            db_path: Path to the database directory
+            db_path: Path to the database directory (e.g., .../.Augmentorium/chroma)
         """
+        logger.info(f"[VectorDB] Instantiating ChromaDB at path: {db_path}")
+        # Assert the path is a directory and not a file
+        if not os.path.isdir(db_path):
+            raise ValueError(f"ChromaDB path must be a directory, got: {db_path}")
+        
         self.db_path = db_path
         
         # Ensure database directory exists
@@ -381,3 +386,11 @@ class VectorDB:
         except Exception as e:
             logger.error(f"Failed to get documents from collection {collection_name}: {e}")
             return {"ids": [], "documents": [], "metadatas": []}
+
+def get_chroma_db_path(project_path):
+    """
+    Returns the absolute, normalized path to the Chroma database directory for a given project.
+    """
+    import os
+    chroma_dir = os.path.join(project_path, ".Augmentorium", "chroma")
+    return os.path.abspath(os.path.normpath(chroma_dir))

@@ -294,8 +294,15 @@ class Indexer:
                     # Insert edges for references if present
                     refs = chunk.metadata.get("references", [])
                     for ref in refs:
-                        # ref can be a symbol name or ID; here we store as-is
-                        insert_edge(conn, chunk.id, ref, "references")
+                        # ref should be a dict: {"target": ..., "type": ...}
+                        if isinstance(ref, dict):
+                            target = ref.get("target")
+                            rel_type = ref.get("type", "references")
+                            if target:
+                                insert_edge(conn, chunk.id, target, rel_type)
+                        else:
+                            # fallback: treat as old string style
+                            insert_edge(conn, chunk.id, ref, "references")
 
                 conn.commit()
                 conn.close()

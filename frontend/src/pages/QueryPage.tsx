@@ -72,9 +72,9 @@ const QueryPage: React.FC = () => {
   return (
     <div>
       <h1>Query</h1>
-      <div style={{ background: '#f8f9fa', border: '1px solid #ddd', borderRadius: '6px', padding: '0.75rem', marginBottom: '1rem', fontSize: '0.98rem' }}>
+      <div className="query-instructions">
         <strong>Tips for best results:</strong>
-        <ul style={{ margin: '0.5em 0 0 1.2em', padding: 0 }}>
+        <ul>
           <li>Use function or class names if you know them (e.g., <code>process_documents</code>).</li>
           <li>Paste a code snippet or line for precise matches.</li>
           <li>Try searching with docstring or comment text.</li>
@@ -88,6 +88,7 @@ const QueryPage: React.FC = () => {
           placeholder="Enter your query"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          className="query-input"
           style={{ width: '60%', marginRight: '0.5rem' }}
         />
         <button onClick={handleQuery} disabled={loading}>
@@ -107,7 +108,7 @@ const QueryPage: React.FC = () => {
       />
       {error && <p style={{ color: 'red' }}>{error}</p>}
       <h2>Context Preview</h2>
-      <pre>{context}</pre>
+      <pre className="context-preview">{context}</pre>
       <h2>Results</h2>
       <ul>
         {results.map((r) => (
@@ -117,7 +118,7 @@ const QueryPage: React.FC = () => {
             {r.metadata.class_name && <div><strong>Class:</strong> {r.metadata.class_name}</div>}
             {r.metadata.function_name && <div><strong>Function:</strong> {r.metadata.function_name}</div>}
             {r.metadata.docstring && <div><strong>Docstring:</strong> {r.metadata.docstring}</div>}
-            <pre style={{ background: '#f4f4f4', padding: '0.5rem' }}>
+            <pre className="result-text-box">
               {highlightMatches(r.text)}
             </pre>
           </li>

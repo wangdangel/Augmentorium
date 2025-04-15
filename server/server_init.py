@@ -33,34 +33,51 @@ def start_api_server(
         Tuple[APIServer, threading.Thread]: API server and its thread
     """
     try:
-        logger.info("Starting Augmentorium API server with MCP")
+        logger.info("Starting Augmentorium API server")
         
         # Get server configuration
         server_config = config.config.get("server", {})
         host = server_config.get("host", "localhost")
         
-        # Create MCPServer first
-        mcp_server = MCPServer(config_manager=config)
-        
         # Build project database mapping and select active project dbs
         project_db_mapping = build_project_db_mapping(config)
-        # Determine which project to use as active
+        db_paths = None
         if active_project:
             db_paths = get_db_paths_for_project(project_db_mapping, active_project)
+        elif 'active_project_name' in locals():
+            db_paths = get_db_paths_for_project(project_db_mapping, active_project_name)
+
+        # DEBUG: Log the resolved ChromaDB path
+        if db_paths and 'chroma_db' in db_paths:
+            print(f"[DEBUG] Resolved ChromaDB path: {db_paths['chroma_db']}")
+        else:
+            print("[DEBUG] Could not resolve ChromaDB path.")
+
+        # Determine which project to use as active
+        if active_project:
             active_project_id = active_project
         else:
             active_project_name = config.get_active_project_name()
-            db_paths = get_db_paths_for_project(project_db_mapping, active_project_name)
             active_project_id = active_project_name
         if not db_paths:
             logger.warning("No valid project database paths found for the active project. Starting API server in 'no active project' mode.")
             db_paths = None
-        if db_paths:
-            vector_db = VectorDB(db_paths["chroma_db"])
-            graph_db_path = db_paths["code_graph_db"]
-        else:
-            vector_db = None
-            graph_db_path = None
+
+        # --- BEGIN PATCH: Use project mapping for DB paths, decoupled from active project ---
+        project_db_mapping = build_project_db_mapping(config)
+        active_project_name = config.config.get("active_project")
+        project_paths = config.config.get("projects", {})
+        active_project_path = project_paths.get(active_project_name)
+        if not active_project_path:
+            raise RuntimeError("No active project path found in config.")
+        db_paths = get_db_paths_for_project(project_db_mapping, active_project_path)
+        if not db_paths:
+            raise RuntimeError(f"No DB paths found for project: {active_project_path}")
+        vector_db = VectorDB(db_paths["chroma_db"])
+        graph_db_path = db_paths["code_graph_db"]
+        print(f"[DEBUG] Resolved ChromaDB path: {db_paths['chroma_db']}")
+        print(f"[DEBUG] Resolved Code Graph DB path: {db_paths['code_graph_db']}")
+        # --- END PATCH ---
 
         # Initialize embedder (not project-dependent, always available)
         ollama_config = config.config.get("ollama", {})
@@ -76,30 +93,28 @@ def start_api_server(
             vector_db=vector_db,
             expander=query_expander,
             cache_size=server_config.get("cache_size", 100),
-            graph_db_path=graph_db_path,
-            project_db_mapping=project_db_mapping
+            graph_db_path=graph_db_path
         )
         relationship_enricher = RelationshipEnricher(vector_db)
         context_builder = ContextBuilder(
             max_context_size=config.config.get("chunking", {}).get("max_chunk_size", 1024)
         )
         
-        # Update MCPServer with initial components
-        mcp_server.query_processor = query_processor
-        mcp_server.relationship_enricher = relationship_enricher
-        mcp_server.context_builder = context_builder
-        
         # Create shared indexer status object
         indexer_status = {}
 
-        # Create API server with MCPServer reference
+        # Create API server WITHOUT MCPServer reference
         api_server = APIServer(
             config_manager=config,
-            mcp_server=mcp_server,
             indexer_status=indexer_status,
             host=host,
             port=port
         )
+        
+        # Attach query components directly to app
+        api_server.app.query_processor = query_processor
+        api_server.app.relationship_enricher = relationship_enricher
+        api_server.app.context_builder = context_builder
         
         # Start API server in a thread
         api_thread = threading.Thread(target=api_server.run)
@@ -146,7 +161,6 @@ def main():
             time.sleep(1)
     except KeyboardInterrupt:
         logger.info("Stopping Augmentorium server")
-        mcp_service.stop()
 
 
 if __name__ == "__main__":

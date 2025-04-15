@@ -3,7 +3,8 @@ general:
   log_level: INFO
 projects:
   ice: K:\Documents\icecrawl
-active_project: blank
+  alphaone: K:\Documents\alphaone
+active_project: alphaone
 indexer:
   polling_interval: 1.0
   max_workers: 4
@@ -42,6 +43,7 @@ indexer:
   - '**/logs/**'
   - '**/old_code/**'
   - '*.md'
+  - "/.pytest_cache/
   - .Augmentorium
   - '**/.Augmentorium/**'
   - '*.png'

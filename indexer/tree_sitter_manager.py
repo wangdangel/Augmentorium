@@ -57,7 +57,12 @@ class TreeSitterManager:
             Language string compatible with Tree-sitter, or None if unknown
         """
         ext = os.path.splitext(file_path)[1].lower()
-        return EXTENSION_TO_LANGUAGE.get(ext)
+        lang = EXTENSION_TO_LANGUAGE.get(ext)
+        print(f"[DEBUG] detect_language: file={file_path}, ext={repr(ext)}, lang={lang}")
+        print(f"[DEBUG] EXTENSION_TO_LANGUAGE keys: {list(EXTENSION_TO_LANGUAGE.keys())}")
+        if lang is None:
+            print(f"[DEBUG] Extension {repr(ext)} not found in EXTENSION_TO_LANGUAGE for file: {file_path}")
+        return lang
 
     def __init__(self):
         """
@@ -82,5 +87,18 @@ class TreeSitterManager:
             logger.info(f"Loaded language from language pack: {language_name}")
             return True
         except Exception as e:
+            # Manual fallback for C#
+            if language_name in ("c_sharp", "csharp"):
+                try:
+                    from tree_sitter_c_sharp import language as csharp_language
+                    from tree_sitter import Parser
+                    parser = Parser()
+                    parser.set_language(csharp_language)
+                    self.parsers[language_name] = parser
+                    self.languages[language_name] = csharp_language
+                    logger.info(f"Manually loaded C# grammar: {language_name}")
+                    return True
+                except Exception as manual_e:
+                    logger.warning(f"Manual load for C# failed: {manual_e}")
             logger.warning(f"Language '{language_name}' not found in language pack, falling back to plain text: {e}")
             return False

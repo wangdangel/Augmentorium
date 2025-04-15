@@ -164,6 +164,9 @@ EXTENSION_LANGUAGE_CANDIDATES = {
     ".zig": "zig",
 }
 
+# Alias for compatibility everywhere in the codebase
+EXTENSION_TO_LANGUAGE = EXTENSION_LANGUAGE_CANDIDATES
+
 def get_available_languages():
     langs = set()
     if os.path.exists(BINDINGS_PATH):

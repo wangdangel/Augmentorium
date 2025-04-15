@@ -17,7 +17,6 @@ from server.api.api_health import health_bp
 from server.api.api_indexer import indexer_bp
 
 from config.manager import ConfigManager
-from server.mcp import MCPServer
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +46,6 @@ class APIServer:
     def __init__(
         self,
         config_manager: ConfigManager,
-        mcp_server: MCPServer,
         indexer_status,
         host: str = "localhost",
         port: int = 6655
@@ -57,13 +55,11 @@ class APIServer:
         
         Args:
             config_manager: Configuration manager
-            mcp_server: MCPServer instance managing project components
             host: Host to bind to
             port: Port to bind to
         """
         import threading
         self.config_manager = config_manager
-        self.mcp_server = mcp_server
         self.host = host
         self.port = port
 
@@ -75,7 +71,6 @@ class APIServer:
         # Initialize Flask app
         self.app = Flask("augmentorium")
         self.app.config_manager = config_manager
-        self.app.mcp_server = mcp_server
         
         # Set up routes
         # Register Blueprints
@@ -126,18 +121,17 @@ class APIServer:
                 vector_db=vector_db,
                 expander=query_expander,
                 cache_size=server_config.get("cache_size", 100),
-                graph_db_path=graph_db_path,
-                project_db_mapping=project_db_mapping
+                graph_db_path=graph_db_path
             )
             relationship_enricher = RelationshipEnricher(vector_db)
             context_builder = ContextBuilder(
                 max_context_size=self.config_manager.config.get("chunking", {}).get("max_chunk_size", 1024)
             )
-            # Update MCPServer with new components
-            self.mcp_server.query_processor = query_processor
-            self.mcp_server.relationship_enricher = relationship_enricher
-            self.mcp_server.context_builder = context_builder
-            logger.info("Project-specific components reloaded and updated in MCPServer successfully.")
+            # Attach new components directly to app
+            self.app.query_processor = query_processor
+            self.app.relationship_enricher = relationship_enricher
+            self.app.context_builder = context_builder
+            logger.info("Project-specific components reloaded and updated in app successfully.")
     
     def run(self) -> None:
         """Run the API server"""

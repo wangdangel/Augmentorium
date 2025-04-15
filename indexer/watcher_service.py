@@ -248,6 +248,11 @@ class FileWatcherService:
                     continue
                 else:
                     logger.debug(f"Including file: {os.path.relpath(file_path, project_path)}")
+                # Only include code files
+                _, ext = os.path.splitext(file)
+                if ext.lower() not in ['.py', '.js', '.ts', '.jsx', '.tsx']:
+                    logger.debug(f"Skipping file (not a code file): {os.path.relpath(file_path, project_path)}")
+                    continue
                 events.append(FileEvent(
                     event_type="created",
                     file_path=file_path,

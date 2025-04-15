@@ -11,6 +11,7 @@ const NODE_TYPE_COLORS: Record<string, string> = {
   class: '#ff7f0e',
   function: '#2ca02c',
   variable: '#d62728',
+  module: '#888',
   default: '#888'
 };
 
@@ -57,36 +58,34 @@ const GraphPage: React.FC = () => {
     }
   }, [filteredData]);
 
-  // File selection logic
-  const fileNodes = graphData?.nodes?.filter((n: any) => n.type === "file" || n.group === "file") || [];
+  // Helper to extract unique file nodes (now using 'module' as file type)
+  const fileNodes = graphData?.nodes.filter(n => n.type === 'module') || [];
+  const fileNames = Array.from(new Set(fileNodes.map(n => n.name))).filter(Boolean);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const fileId = e.target.value;
-    setSelectedFile(fileId);
-    setSelectedNode(null);
-    if (!fileId || !graphData) {
+  // Handle file selection and filter graph
+  useEffect(() => {
+    if (!graphData || !selectedFile) {
       setFilteredData(graphData);
       return;
     }
-    // Find all links where source or target is the file
-    const links = graphData.links.filter((l: any) => l.source === fileId || l.target === fileId);
-    // Find all node ids involved
-    const nodeIds = new Set<string>();
-    nodeIds.add(fileId);
-    links.forEach((l: any) => {
-      nodeIds.add(typeof l.source === "object" ? l.source.id : l.source);
-      nodeIds.add(typeof l.target === "object" ? l.target.id : l.target);
-    });
-    // Filter nodes
-    const nodes = graphData.nodes.filter((n: any) => nodeIds.has(n.id));
-    setFilteredData({ nodes, links });
-  };
-
-  const handleShowAll = () => {
-    setSelectedFile(null);
-    setSelectedNode(null);
-    setFilteredData(graphData);
-  };
+    // Find the selected file node by name
+    const fileNode = graphData.nodes.find(n => n.type === 'module' && n.name === selectedFile);
+    if (!fileNode) {
+      setFilteredData({ nodes: [], links: [] });
+      return;
+    }
+    // Find links where the file node is source or target
+    const connectedLinks = graphData.links.filter(l => l.source === fileNode.id || l.target === fileNode.id);
+    // Find connected node ids
+    const connectedNodeIds = new Set([
+      fileNode.id,
+      ...connectedLinks.map(l => l.source),
+      ...connectedLinks.map(l => l.target)
+    ]);
+    // Filter nodes and links
+    const filteredNodes = graphData.nodes.filter(n => connectedNodeIds.has(n.id));
+    setFilteredData({ nodes: filteredNodes, links: connectedLinks });
+  }, [graphData, selectedFile]);
 
   // Node/edge highlighting logic
   const getHighlighted = () => {
@@ -120,10 +119,22 @@ const GraphPage: React.FC = () => {
     );
     if (found) {
       setSelectedNode(found);
-      // Optionally, center camera on node
       if (fgRef.current) {
-        fgRef.current.centerAt(found.x || 0, found.y || 0, found.z || 0, 1000);
-        fgRef.current.zoomToFit(300, 40, (node: any) => node.id === found.id);
+        // Use cameraPosition for 3D centering
+        if (typeof fgRef.current.cameraPosition === 'function') {
+          fgRef.current.cameraPosition(
+            { x: found.x || 0, y: found.y || 0, z: found.z || 0 },
+            undefined,
+            1000
+          );
+        } else {
+          console.warn('cameraPosition is not a function on fgRef.current:', fgRef.current);
+        }
+        if (typeof fgRef.current.zoomToFit === 'function') {
+          fgRef.current.zoomToFit(300, 40, (node: any) => node.id === found.id);
+        } else {
+          console.warn('zoomToFit is not a function on fgRef.current:', fgRef.current);
+        }
       }
     }
   };
@@ -150,6 +161,17 @@ const GraphPage: React.FC = () => {
   return (
     <div style={{ height: '80vh', border: '1px solid lightgray', padding: 8 }}>
       <h1>Code Relationships</h1>
+      <label htmlFor="file-select">Select file: </label>
+      <select
+        id="file-select"
+        value={selectedFile || ''}
+        onChange={e => setSelectedFile(e.target.value || null)}
+      >
+        <option value="">All files</option>
+        {fileNames.map(name => (
+          <option key={name} value={name}>{name}</option>
+        ))}
+      </select>
       {loading && <p>Loading graph...</p>}
       {error && <p style={{ color: 'red' }}>{error}</p>}
       <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -163,20 +185,6 @@ const GraphPage: React.FC = () => {
           />
           <button type="submit">Search</button>
         </form>
-        <label>
-          Focus on file:&nbsp;
-          <select value={selectedFile || ""} onChange={handleFileSelect}>
-            <option value="">(Show all files)</option>
-            {fileNodes.map((n: any) => (
-              <option key={n.id} value={n.id}>
-                {n.name || n.id}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button onClick={handleShowAll} disabled={!selectedFile && !selectedNode}>
-          Show All
-        </button>
         <button onClick={handleZoomToFit}>Zoom to Fit</button>
         <button onClick={handleResetCamera}>Reset Camera</button>
       </div>

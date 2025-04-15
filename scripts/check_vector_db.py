@@ -2,10 +2,10 @@ import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from utils.db_utils import VectorDB
+from utils.db_utils import VectorDB, get_chroma_db_path
 
 project_root = r"K:\Documents\icecrawl"
-db_path = os.path.join(project_root, ".Augmentorium", "chroma")
+db_path = get_chroma_db_path(project_root)
 
 vector_db = VectorDB(db_path)
 
