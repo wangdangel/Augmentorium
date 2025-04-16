@@ -1,39 +1,36 @@
-# MCP Python Server for Augmentorium
+# MCP Node.js Server for Augmentorium
 
-This server implements the Model Context Protocol (MCP) for connecting to the Augmentorium RAG server.
+This server implements the Model Context Protocol (MCP) for connecting to the Augmentorium RAG server, now fully in Node.js and communicating via **standard IO** (stdin/stdout), not SSE or REST.
 
 ## Features
-- **Strict typing** using Pydantic types for all tool/resource requests and responses
-- **Connects to the RAG server** via REST API at `http://localhost:6655`
-- **All tools and resources are exposed via SSE and stdio only**
-- **No standard HTTP REST API for tool/resource invocation**
-- **LLM/agent friendly:** clear error messages, discoverable schemas, and streaming-first
-- **DRY:** Reuses types and functions where possible
-- **Only operates within this `mcp/` folder**
+- **Node.js implementation** for fast, reliable agent integration
+- **Standard IO only**: designed for LLM/agent orchestration (Klein Claude, Claude, GPT, etc.)
+- **No Python dependencies**
+- **No manual process management**: launched and managed by the platform installer and Supervisor
 
 ## Project Structure
-- `mcp_server.py` – Main entry point (SSE endpoints only)
-- `stdio_server.py` – Standard IO (stdio) transport for CLI/agent/LLM use
-- `types.py` – Strict MCP protocol types
-- `rag_client.py` – Async client for RAG server
-- `requirements.txt` – Python dependencies
+- `mcp-server.js` – Main entry point (STDIN/STDOUT transport)
+- `dist/` – Compiled/bundled code
+- `tsconfig.json` – TypeScript configuration
 
 ## Usage
-1. Install dependencies: `pip install -r requirements.txt`
-2. Run the SSE server: `python mcp_server.py` (serves only `/sse/...` endpoints)
-3. Run stdio server: `python stdio_server.py` (reads/writes JSON lines)
+**You do not need to manually launch or configure the MCP server.**
 
-## SSE Transport
-- All tools: `/sse/tools/{tool}/invoke`
-- All resources: `/sse/resources`, `/sse/resources/{project}`, etc.
-- Each endpoint streams `{ "event": "result", "data": ... }` or `{ "event": "error", ... }`
+- The platform installer and Supervisor will handle everything automatically.
+- For advanced agent integration, connect via standard IO.
 
-## Stdio Transport
-- Input: `{ "tool": "query", "data": { ... } }` (see `TOOL_MAP` in stdio_server.py)
-- Output: `{ "result": ... }` or `{ "error": ... }`
-- Full parity with SSE endpoints
+## For Klein Claude AI Windsurf
+- Set the MCP server to use standard IO (STDIN/STDOUT communication).
+- No Python dependencies or manual process management required.
+- For protocol details, see the [MCP documentation](https://github.com/modelcontextprotocol)
 
-## Notes
-- No standard HTTP REST API for any tool/resource invocation
-- See MCP documentation for protocol details and conventions
-- For LLM/agent integration, always use SSE or stdio transports
+---
+
+## Troubleshooting
+- If the MCP server is not responding, rerun the platform installer to restart all services.
+- For advanced debugging, check the Supervisor logs in the root directory.
+
+---
+
+## License
+MIT

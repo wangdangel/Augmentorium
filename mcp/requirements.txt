@@ -1,8 +1,0 @@
-fastapi
-uvicorn
-httpx
-sse-starlette
-pydantic
-python-dotenv
-# For strict typing to MCP protocol - replace with actual MCP SDK if available
-# @modelcontextprotocol/sdk/python
