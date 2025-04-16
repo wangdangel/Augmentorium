@@ -219,7 +219,13 @@ Contributions are welcome! Please open issues, submit PRs, or suggest features.
 
 ## License
 
-This project is licensed under the MIT License.
+This project is licensed under the [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/).
+
+- **Free for personal, non-commercial use by individuals.**
+- **Commercial use by organizations, companies, or for-profit entities is NOT permitted under this license.**
+- To obtain a commercial license, please contact: admin@ambientflare.com
+
+By using this software, you agree to these terms.
 
 ---
 
