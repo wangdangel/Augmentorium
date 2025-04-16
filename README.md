@@ -16,6 +16,7 @@
 - [Features](#features)
 - [Demo](#demo)
 - [Installation](#installation)
+- [Adding Your First Project](#adding-your-first-project)
 - [MCP Server Setup (Cline, Roo, Claude Coder, Windsurf, etc.)](#mcp-server-setup-cline-roo-claude-coder-windsurf-etc)
 - [Ollama Embedding Requirements](#ollama-embedding-requirements)
 - [Project Structure](#project-structure)
@@ -60,8 +61,17 @@ Augmentorium is built for:
 ## Installation
 
 ### Prerequisites
-- [Ollama](https://ollama.com/) (for embeddings, must be installed locally)
-- Git
+
+- **Python 3.8+** (required for the backend and core services)
+- **Ollama** (for embeddings, must be installed locally): [https://ollama.com/](https://ollama.com/)
+- **Node.js** (required for the MCP server and frontend builds): [https://nodejs.org/](https://nodejs.org/)
+- **Git** (for cloning the repository)
+- **Supervisor** (process manager, usually installed by the setup scripts)
+- **(Optional) npm/yarn** (if you plan to modify/rebuild the frontend)
+
+**Platform-specific:**
+- **Windows:** Run the installer as Administrator.
+- **Linux/Mac:** Must have `bash`, `sudo`, and permission to `chmod +x` scripts.
 
 ### 1. Clone the Repository
 ```bash
@@ -96,6 +106,27 @@ Choose your platform and run the provided script:
   ```bash
   bash setup_augmentorium_mac.sh
   ```
+
+---
+
+## Adding Your First Project
+
+Augmentorium is designed to monitor and index one or more project folders. When you add a project, the server will automatically watch that folder for changes and update the RAG (Retrieval-Augmented Generation) index in real time. This ensures your codebase and knowledge graph are always up to date.
+
+### Ways to Add a Project
+
+**1. Using the Built-in Web UI:**
+- Open the Augmentorium web interface in your browser (usually at [http://localhost:6656](http://localhost:6656)).
+- Use the "Add Project" feature and provide a name and the path to your project folder.
+- The server will begin monitoring the folder immediately.
+
+**2. Using an LLM/Agent Command:**
+- You can instruct your connected LLM/agent (such as Cline, Roo, Claude Coder, Windsurf, etc.) to add a project by providing the project name and path.
+- Example prompt: `Add a project named "MyApp" at path "C:/Users/you/code/MyApp"`
+
+**Project Monitoring:**
+- Once a project is added, any changes (file additions, deletions, edits) in the folder will be detected and the RAG index will be updated automatically.
+- You can add multiple projects; each will be tracked independently.
 
 ---
 
