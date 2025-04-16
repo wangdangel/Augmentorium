@@ -40,6 +40,24 @@ source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
+# === Patch supervisord.conf with correct PROJECT_DIR ===
+PROJECT_DIR="$(pwd)"
+CONF_FILE="supervisord.conf"
+awk -v dir="$PROJECT_DIR" '
+/^[[]program:/ {
+    print;
+    getline nextline;
+    if (nextline !~ /^environment=/) {
+        print "environment=PROJECT_DIR=\"" dir "\""";
+        print nextline;
+    } else {
+        print "environment=PROJECT_DIR=\"" dir "\""; 
+    }
+    next
+}
+{ print }
+' "$CONF_FILE" > "${CONF_FILE}.tmp" && mv "${CONF_FILE}.tmp" "$CONF_FILE"
+
 # === Ensure Supervisor is installed ===
 pip show supervisor >/dev/null 2>&1 || pip install supervisor
 

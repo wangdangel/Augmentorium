@@ -45,6 +45,21 @@ REM === Install dependencies ===
 pip install --upgrade pip
 pip install -r requirements.txt
 
+REM === Patch supervisord.conf with correct PROJECT_DIR ===
+set "PROJECT_DIR=%CD%"
+set "CONF_FILE=supervisord.conf"
+(for /f "usebackq delims=" %%l in (%CONF_FILE%) do (
+    echo %%l| findstr /b /c:"[program:" >nul && (
+        echo %%l
+        set /p nextline= <&3
+        echo !nextline!| findstr /b /c:"environment=" >nul || echo environment=PROJECT_DIR="%PROJECT_DIR%"
+        echo !nextline!
+        goto :continue
+    )
+    echo %%l
+    :continue
+)) > supervisord.conf.tmp && move /Y supervisord.conf.tmp supervisord.conf
+
 REM === Ensure Supervisor is installed ===
 pip show supervisor >nul 2>nul
 if %ERRORLEVEL% NEQ 0 (
