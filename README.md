@@ -1,7 +1,11 @@
 <!-- Badges and Buy Me a Coffee -->
 <p align="center">
   <img src="https://img.shields.io/badge/build-passing-brightgreen.svg" alt="Build Status">
-  <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
+  <img src="https://img.shields.io/badge/license-PolyForm%20Noncommercial-blueviolet.svg" alt="License: PolyForm Noncommercial">
+  <img src="https://img.shields.io/badge/python-3.8%2B-blue.svg" alt="Python 3.8+ Required">
+  <img src="https://img.shields.io/badge/node.js-%3E=16.x-green.svg" alt="Node.js Required">
+  <img src="https://img.shields.io/badge/individual%20use-free-brightgreen.svg" alt="Free for Individuals">
+  <img src="https://img.shields.io/badge/commercial%20use-contact%20admin%40ambientflare.com-red.svg" alt="Commercial License Required">
   <img src="https://img.shields.io/badge/contributions-welcome-orange.svg" alt="Contributions">
   <a href="https://buymeacoffee.com/ambientflare"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support%20me-yellow?logo=buy-me-a-coffee&logoColor=white" alt="Buy Me a Coffee"></a>
 </p>
