@@ -8,25 +8,6 @@ def require_active_project(func):
     Assumes config_manager is available via Flask's g or current_app.
     """
     @wraps(func)
-    def wrapper(*args, **kwargs):
-        # Try g first, fallback to current_app
-        config_manager = getattr(g, "config_manager", None)
-        if config_manager is None:
-            config_manager = getattr(current_app, "config_manager", None)
-        if config_manager is None:
-            return (
-                jsonify({
-                    "error": "Server misconfiguration: config_manager not found."
-                }),
-                500
-            )
-        active_project = config_manager.get_active_project_name()
-        if not active_project:
-            return (
-                jsonify({
-                    "error": "No active project set. Please set or create a project using the /api/projects endpoint."
-                }),
-                400
-            )
-        return func(*args, **kwargs)
+    def wrapper(project, *args, **kwargs):
+        return func(project, *args, **kwargs)
     return wrapper

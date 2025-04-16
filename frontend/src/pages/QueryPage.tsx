@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import QueryOptions from '../components/QueryOptions';
+import { fetchProjects, Project } from '../api/projects';
 
 interface QueryResult {
   chunk_id: string;
@@ -15,18 +16,35 @@ interface QueryResult {
 }
 
 const QueryPage: React.FC = () => {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoaded, setProjectsLoaded] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<string>('');
   const [query, setQuery] = useState('');
   const [context, setContext] = useState('');
   const [results, setResults] = useState<QueryResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
   const [nResults, setNResults] = useState(10);
   const [minScore, setMinScore] = useState(0);
   const [includeMetadata, setIncludeMetadata] = useState(true);
 
+  useEffect(() => {
+    let mounted = true;
+    fetchProjects().then((data) => {
+      if (mounted) {
+        setProjects(data);
+        setProjectsLoaded(true);
+      }
+    });
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    if (projectsLoaded && projects.length > 0) setSelectedProject(projects[0].name);
+  }, [projectsLoaded, projects]);
+
   const handleQuery = async () => {
-    if (!query) return;
+    if (!query || !selectedProject) return;
     setLoading(true);
     setError(null);
     try {
@@ -34,6 +52,7 @@ const QueryPage: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          project: selectedProject,
           query,
           n_results: nResults,
           min_score: minScore,
@@ -51,21 +70,14 @@ const QueryPage: React.FC = () => {
     }
   };
 
-  const handleExport = () => {
-    const blob = new Blob([context], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'context.txt';
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const highlightMatches = (text: string) => {
-    if (!query.trim()) return text;
-    const parts = text.split(new RegExp(`(${query})`, 'gi'));
-    return parts.map((part, idx) =>
-      part.toLowerCase() === query.toLowerCase() ? <mark key={idx}>{part}</mark> : part
+    if (!query) return text;
+    const re = new RegExp(query, 'gi');
+    return text.split(re).reduce((acc, part, i, arr) =>
+      i < arr.length - 1
+        ? [...acc, part, <mark key={i}>{query}</mark>]
+        : [...acc, part],
+      [] as (string | JSX.Element)[]
     );
   };
 
@@ -83,21 +95,31 @@ const QueryPage: React.FC = () => {
         </ul>
       </div>
       <div style={{ marginBottom: '1rem' }}>
-        <input
-          type="text"
-          placeholder="Enter your query"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="query-input"
-          style={{ width: '60%', marginRight: '0.5rem' }}
-        />
-        <button onClick={handleQuery} disabled={loading}>
-          {loading ? 'Searching...' : 'Search'}
-        </button>
-        <button onClick={handleExport} style={{ marginLeft: '0.5rem' }}>
-          Export Context
-        </button>
+        <label htmlFor="project-select">Project: </label>
+        <select
+          id="project-select"
+          value={selectedProject}
+          onChange={e => setSelectedProject(e.target.value)}
+        >
+          {projects.map(p => (
+            <option key={p.name} value={p.name}>{p.name}</option>
+          ))}
+        </select>
       </div>
+      <input
+        type="text"
+        placeholder="Enter your query"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        className="query-input"
+        style={{ width: '60%', marginRight: '0.5rem' }}
+      />
+      <button onClick={handleQuery} disabled={loading || !selectedProject || !query}>
+        {loading ? 'Querying...' : 'Query'}
+      </button>
+      <button onClick={() => handleExport(context)} style={{ marginLeft: '0.5rem' }}>
+        Export Context
+      </button>
       <QueryOptions
         nResults={nResults}
         setNResults={setNResults}
@@ -126,6 +148,16 @@ const QueryPage: React.FC = () => {
       </ul>
     </div>
   );
+};
+
+const handleExport = (context: string) => {
+  const blob = new Blob([context], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'context.txt';
+  a.click();
+  URL.revokeObjectURL(url);
 };
 
 export default QueryPage;

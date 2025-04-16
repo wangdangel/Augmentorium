@@ -2,8 +2,6 @@ from flask import Blueprint, jsonify, request, current_app, g
 import os
 import logging
 
-from server.api.common import require_active_project
-
 documents_bp = Blueprint('documents', __name__, url_prefix='/api/documents')
 logger = logging.getLogger(__name__)
 
@@ -15,13 +13,16 @@ def get_config_manager():
     return config_manager
 
 @documents_bp.route('/', methods=['GET'])
-@require_active_project
 def list_documents():
     """
-    List indexed documents.
+    List indexed documents for a specific project.
+    Requires: project name in query params.
     """
+    project_name = request.args.get("project")
+    if not project_name:
+        return jsonify({"error": "Project name must be specified."}), 400
     config_manager = get_config_manager()
-    # TODO: Replace with real document metadata retrieval
+    # TODO: Replace with real document metadata retrieval for the given project
     docs = [
         {
             "id": "doc1",
@@ -36,20 +37,28 @@ def list_documents():
     return jsonify({"documents": docs})
 
 @documents_bp.route('/upload', methods=['POST'])
-@require_active_project
 def upload_document():
     """
-    Upload a new document.
+    Upload a new document to a specific project.
+    Requires: project name in request JSON.
     """
-    # TODO: Implement file upload handling
-    return jsonify({"status": "success", "message": "Upload endpoint not yet implemented"}), 501
+    data = request.json or {}
+    project_name = data.get("project")
+    if not project_name:
+        return jsonify({"error": "Project name must be specified."}), 400
+    # TODO: Implement file upload handling for the given project
+    return jsonify({"status": "success", "message": f"Upload endpoint not yet implemented for project {project_name}"}), 501
 
 
 @documents_bp.route('/<doc_id>/reindex', methods=['POST'])
-@require_active_project
 def reindex_document(doc_id):
     """
-    Trigger reindexing of a specific document.
+    Trigger reindexing of a specific document for a given project.
+    Requires: project name in request JSON.
     """
-    # TODO: Implement per-document reindexing
-    return jsonify({"status": "success", "message": f"Reindex {doc_id} not yet implemented"}), 501
+    data = request.json or {}
+    project_name = data.get("project")
+    if not project_name:
+        return jsonify({"error": "Project name must be specified."}), 400
+    # TODO: Implement per-document reindexing for the given project
+    return jsonify({"status": "success", "message": f"Reindex {doc_id} not yet implemented for project {project_name}"}), 501

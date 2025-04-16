@@ -4,8 +4,6 @@ general:
 projects:
   ice: K:\Documents\icecrawl
   alphaone: K:\Documents\alphaone
-  dummy_path: K:\Documents\augmentorium\dummy_path
-active_project: alphaone
 indexer:
   polling_interval: 1.0
   max_workers: 4

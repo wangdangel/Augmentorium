@@ -1,8 +1,24 @@
 from flask import Blueprint, jsonify, current_app, g, request
 import os
+import yaml
 from server.api.project_helpers import get_project_path
+from pathspec import PathSpec
 
 files_bp = Blueprint('files', __name__, url_prefix='/api/files')
+
+# Helper to load ignore patterns from config.yaml and compile with pathspec
+
+def load_ignore_spec():
+    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config.yaml')
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+        patterns = config.get('indexer', {}).get('ignore_patterns', [])
+        spec = PathSpec.from_lines('gitwildmatch', patterns)
+        return spec
+    except Exception as e:
+        print(f"[WARN] Could not load ignore patterns from config.yaml: {e}")
+        return PathSpec.from_lines('gitwildmatch', [])
 
 @files_bp.route('/', methods=['GET'])
 def list_files():
@@ -27,10 +43,16 @@ def list_files():
 
     max_files = request.args.get("max_files", default=20, type=int)
     file_list = []
+    ignore_spec = load_ignore_spec()
     for root, dirs, files in os.walk(project_path):
+        rel_root = os.path.relpath(root, project_path)
+        # Skip ignored directories in-place
+        dirs[:] = [d for d in dirs if not ignore_spec.match_file(os.path.join(rel_root, d))]
         for name in files:
+            rel_path = os.path.normpath(os.path.join(rel_root, name))
+            if ignore_spec.match_file(rel_path):
+                continue
             file_path = os.path.join(root, name)
-            rel_path = os.path.relpath(file_path, project_path)
             try:
                 stat = os.stat(file_path)
                 file_list.append({

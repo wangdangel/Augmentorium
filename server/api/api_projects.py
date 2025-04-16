@@ -131,14 +131,24 @@ def add_project():
         return jsonify({"status": "error", "message": f"An unexpected error occurred: {e}"}), 500
 
 @projects_bp.route('/<name>', methods=['DELETE'])
+@projects_bp.route('/<name>/', methods=['DELETE'])
 def remove_project(name):
     """Remove a project"""
-    success = config_manager.remove_project(name)
+    if not name:
+        return jsonify({"error": "Project name must be specified."}), 400
+    if not config_manager:
+        return jsonify({"error": "Server misconfiguration: config_manager not found."}), 500
+    try:
+        success = config_manager.remove_project(name)
+    except Exception as e:
+        import traceback
+        print("[ERROR] Exception in remove_project:", traceback.format_exc())
+        return jsonify({"error": f"Internal error: {e}"}), 500
 
     if success:
         return jsonify({"status": "success", "message": f"Removed project: {name}"})
     else:
-        return jsonify({"error": f"Failed to remove project: {name}"}), 404
+        return jsonify({"error": f"Failed to remove project: {name}. Project may not exist."}), 404
 
 @projects_bp.route('/<project_name>/reindex', methods=['POST'])
 def reindex_project(project_name):
@@ -175,48 +185,6 @@ def reindex_project(project_name):
             return jsonify({"status": "error", "message": f"Failed to notify indexer: {e}"}), 500
     except Exception as e:
         return jsonify({"error": f"Failed to trigger reindex: {e}"}), 500
-
-@projects_bp.route('/active', methods=['GET'])
-def get_active_project():
-    """Get active project"""
-    active_name = config_manager.get_active_project_name()
-    projects = config_manager.get_all_projects()
-    if active_name and active_name in projects:
-        return jsonify({
-            "project": {
-                "name": active_name,
-                "path": projects[active_name]
-            }
-        })
-    else:
-        return jsonify({"project": None})
-
-@projects_bp.route('/active', methods=['POST'])
-def set_active_project():
-    """Set active project"""
-    import traceback
-    try:
-        data = request.json
-
-        if not data or "name" not in data:
-            return jsonify({"error": "Missing project name"}), 400
-
-        project_name = data["name"]
-        if config_manager:
-            success = config_manager.set_active_project_name(project_name)
-            if success:
-                return jsonify({"status": "success", "message": f"Active project set to '{project_name}'"})
-            else:
-                all_projects = config_manager.get_all_projects()
-                if project_name not in all_projects:
-                    return jsonify({"error": f"Project '{project_name}' not found."}), 404
-                else:
-                    return jsonify({"error": f"Failed to set active project to '{project_name}'."}), 500
-        else:
-            return jsonify({"error": "Configuration manager not available"}), 500
-    except Exception as e:
-        print("Exception in set_active_project:", traceback.format_exc())
-        return jsonify({"error": f"Internal server error: {e}"}), 500
 
 @projects_bp.route('/<project_name>/reinitialize', methods=['POST'])
 def reinitialize_project(project_name):
@@ -361,4 +329,14 @@ def reinitialize_project(project_name):
     return jsonify({
         "status": "success",
         "message": f"Project '{project_name}' reinitialized successfully at '{project_path}'{reindex_msg}"
+    })
+
+@projects_bp.route('/debug', methods=['GET'])
+def debug_projects():
+    """Debug endpoint to show current in-memory projects registry."""
+    if not config_manager:
+        return jsonify({"error": "Server misconfiguration: config_manager not found."}), 500
+    return jsonify({
+        "projects": getattr(config_manager, 'projects', None),
+        "config": getattr(config_manager, 'config', None)
     })

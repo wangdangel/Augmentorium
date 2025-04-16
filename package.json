@@ -1,5 +1,13 @@
 {
+  "type": "module",
   "dependencies": {
-    "react-force-graph-3d": "^1.26.1"
+    "@modelcontextprotocol/sdk": "^1.9.0",
+    "axios": "^1.8.4",
+    "react-force-graph-3d": "^1.26.1",
+    "undici-types": "^7.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.1",
+    "ts-node": "^10.9.2"
   }
 }

@@ -1,32 +1,32 @@
-from flask import Blueprint, jsonify, Response, current_app
+from flask import Blueprint, jsonify, Response, current_app, request
 
 graph_bp = Blueprint('graph', __name__, url_prefix='/api/graph')
 
-@graph_bp.route('/', methods=['GET'])
+@graph_bp.route('/', methods=['GET', 'POST'])
 def get_graph() -> Response:
-    config_manager = current_app.config_manager
-    active_project = config_manager.get_active_project_name()
-    if not active_project:
+    # Accept project as query param (GET) or in JSON body (POST)
+    project_name = request.args.get('project')
+    if not project_name and request.method == 'POST':
+        data = request.get_json(silent=True) or {}
+        project_name = data.get('project')
+    if not project_name:
         return (
             jsonify({
-                "error": "No active project set. Please set or create a project using the /api/projects endpoint."
+                "error": "Project name must be specified as a query parameter or in the POST body."
             }),
             400
         )
-    """
-    Return code relationship graph data from the graph database.
-
-    Error Response (if no active project):
-        HTTP 400
-        {
-            "error": "No active project set. Please set or create a project using the /api/projects endpoint."
-        }
-    """
+    config_manager = getattr(current_app, 'config_manager', None)
+    if config_manager is None:
+        return jsonify({"error": "No config manager found"}), 500
+    project_path = config_manager.get_project_path(project_name)
+    if not project_path:
+        return jsonify({"error": f"Project '{project_name}' not found."}), 404
+    graph_db_path = config_manager.get_graph_db_path(project_path)
+    if not graph_db_path:
+        return jsonify({"error": f"Graph DB for project '{project_name}' not found."}), 404
     from utils.graph_db import get_connection
     import json
-    # Get the active project path and graph DB path
-    project_path = config_manager.get_project_path(active_project)
-    graph_db_path = config_manager.get_graph_db_path(project_path)
     conn = get_connection(graph_db_path)
     # Fetch all nodes
     node_rows = conn.execute("SELECT id, type, name, file_path, start_line, end_line, metadata FROM nodes").fetchall()

@@ -7,6 +7,7 @@ import json
 import logging
 from typing import Dict, List, Optional, Any, Set, Tuple, Union
 from flask import Flask, request, jsonify, Response
+from flask_cors import CORS
 # Import Blueprints
 from server.api.api_projects import projects_bp, init_projects_blueprint
 from server.api.api_documents import documents_bp
@@ -77,6 +78,7 @@ class APIServer:
         
         # Initialize Flask app
         self.app = Flask("augmentorium")
+        CORS(self.app, origins=["http://localhost:5173"])  # Allow frontend dev server
         self.app.config_manager = config_manager
         
         # Set up routes
