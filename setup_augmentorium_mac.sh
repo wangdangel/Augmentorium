@@ -40,23 +40,39 @@ source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# === Patch supervisord.conf with correct PROJECT_DIR ===
-PROJECT_DIR="$(pwd)"
-CONF_FILE="supervisord.conf"
-awk -v dir="$PROJECT_DIR" '
-/^[[]program:/ {
-    print;
-    getline nextline;
-    if (nextline !~ /^environment=/) {
-        print "environment=PROJECT_DIR=\"" dir "\""";
-        print nextline;
-    } else {
-        print "environment=PROJECT_DIR=\"" dir "\""; 
-    }
-    next
-}
-{ print }
-' "$CONF_FILE" > "${CONF_FILE}.tmp" && mv "${CONF_FILE}.tmp" "$CONF_FILE"
+# === Generate supervisord.conf with correct Mac paths ===
+cat <<EOF > supervisord.conf
+[supervisord]
+logfile=supervisord.log
+loglevel=info
+
+[program:server]
+environment=PROJECT_DIR="$(pwd)"
+command=%(ENV_PROJECT_DIR)s/.venv/bin/python scripts/run_server.py
+directory=%(ENV_PROJECT_DIR)s
+autostart=true
+autorestart=true
+stdout_logfile=server.log
+stderr_logfile=server.err.log
+
+[program:indexer]
+environment=PROJECT_DIR="$(pwd)"
+command=%(ENV_PROJECT_DIR)s/.venv/bin/python scripts/run_indexer.py
+directory=%(ENV_PROJECT_DIR)s
+autostart=true
+autorestart=true
+stdout_logfile=indexer.log
+stderr_logfile=indexer.err.log
+
+[program:frontend]
+environment=PROJECT_DIR="$(pwd)"
+command=%(ENV_PROJECT_DIR)s/.venv/bin/python -m http.server 6656 --directory %(ENV_PROJECT_DIR)s/frontend/dist
+directory=%(ENV_PROJECT_DIR)s/frontend/dist
+autostart=true
+autorestart=true
+stdout_logfile=frontend.log
+stderr_logfile=frontend.err.log
+EOF
 
 # === Ensure Supervisor is installed ===
 pip show supervisor >/dev/null 2>&1 || pip install supervisor

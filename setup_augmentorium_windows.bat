@@ -45,20 +45,39 @@ REM === Install dependencies ===
 pip install --upgrade pip
 pip install -r requirements.txt
 
-REM === Patch supervisord.conf with correct PROJECT_DIR ===
-set "PROJECT_DIR=%CD%"
-set "CONF_FILE=supervisord.conf"
-(for /f "usebackq delims=" %%l in (%CONF_FILE%) do (
-    echo %%l| findstr /b /c:"[program:" >nul && (
-        echo %%l
-        set /p nextline= <&3
-        echo !nextline!| findstr /b /c:"environment=" >nul || echo environment=PROJECT_DIR="%PROJECT_DIR%"
-        echo !nextline!
-        goto :continue
-    )
-    echo %%l
-    :continue
-)) > supervisord.conf.tmp && move /Y supervisord.conf.tmp supervisord.conf
+REM === Generate supervisord.conf with correct Windows paths ===
+> supervisord.conf (
+    echo [supervisord]
+    echo logfile=supervisord.log
+    echo loglevel=info
+    echo.
+    echo [program:server]
+    echo environment=PROJECT_DIR="%%CD%%"
+    echo command=%%(ENV_PROJECT_DIR)s\.venv\Scripts\python.exe scripts\run_server.py
+    echo directory=%%(ENV_PROJECT_DIR)s
+    echo autostart=true
+    echo autorestart=true
+    echo stdout_logfile=server.log
+    echo stderr_logfile=server.err.log
+    echo.
+    echo [program:indexer]
+    echo environment=PROJECT_DIR="%%CD%%"
+    echo command=%%(ENV_PROJECT_DIR)s\.venv\Scripts\python.exe scripts\run_indexer.py
+    echo directory=%%(ENV_PROJECT_DIR)s
+    echo autostart=true
+    echo autorestart=true
+    echo stdout_logfile=indexer.log
+    echo stderr_logfile=indexer.err.log
+    echo.
+    echo [program:frontend]
+    echo environment=PROJECT_DIR="%%CD%%"
+    echo command=%%(ENV_PROJECT_DIR)s\.venv\Scripts\python.exe -m http.server 6656 --directory %% (ENV_PROJECT_DIR)s\frontend\dist
+    echo directory=%%(ENV_PROJECT_DIR)s\frontend\dist
+    echo autostart=true
+    echo autorestart=true
+    echo stdout_logfile=frontend.log
+    echo stderr_logfile=frontend.err.log
+)
 
 REM === Ensure Supervisor is installed ===
 pip show supervisor >nul 2>nul
