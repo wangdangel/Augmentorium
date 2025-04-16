@@ -16,7 +16,7 @@
 - [Features](#features)
 - [Demo](#demo)
 - [Installation](#installation)
-- [MCP Server Setup (Klein Claude AI Windsurf)](#mcp-server-setup-klein-claude-ai-windsurf)
+- [MCP Server Setup (Cline, Roo, Claude Coder, Windsurf, etc.)](#mcp-server-setup-cline-roo-claude-coder-windsurf-etc)
 - [Ollama Embedding Requirements](#ollama-embedding-requirements)
 - [Project Structure](#project-structure)
 - [Troubleshooting & FAQ](#troubleshooting--faq)
@@ -97,21 +97,53 @@ All services (indexer, API server, MCP server, frontend) are automatically manag
 
 ---
 
-## MCP Server Setup (Klein Claude AI Windsurf)
+## MCP Server Setup (Cline, Roo, Claude Coder, Windsurf, etc.)
 
-The MCP server is now implemented in Node.js and communicates via **standard IO** (not SSE or REST). This enables seamless integration with Klein Claude AI Windsurf and other MCP-compliant agents.
+The MCP server is implemented in Node.js and communicates via **standard IO** (stdin/stdout). This enables seamless integration with Cline, Roo, Claude Coder, Windsurf, and other MCP-compliant agents.
 
-### Steps:
-1. **Run the installer for your platform** (see above). This will set up and launch the MCP server automatically.
-2. **Configure Klein Claude AI Windsurf:**
-    - Set the MCP server to use standard IO (STDIN/STDOUT communication).
-    - No Python dependencies or manual process management required.
-    - For advanced usage, see the [MCP documentation](https://github.com/modelcontextprotocol).
+### How to Add Augmentorium to Your `mcp_config.json`
 
-### Notes
-- The MCP server only exposes standard IO endpoints.
-- All tools and resources are discoverable via the MCP protocol.
-- For LLM/agent integration, always use standard IO transport.
+Add the following chunk to the `tools` section of your `mcp_config.json`:
+
+```json
+"augment": {
+  "transports": [ "stdio" ],
+  "command": "node",
+  "args": [
+    "c:path_to_install_folder/augmentorium/mcp/dist/mcp-server.js"
+  ],
+  "cwd": "c:path_to_install_folder/augmentorium/mcp",
+  "disabled": false,
+  "timeout": 60,
+  "autoApprove": [],
+  "alwaysAllow": []
+}
+```
+
+> **Note:**
+> - The above paths use Windows-style (`c:path_to_install_folder`). For Linux and Mac, you must **chmod +x** the installer script before executing it, and adjust the paths to match your OS (e.g., `/home/youruser/augmentorium/mcp/dist/mcp-server.js`).
+> - Always verify the path matches where you installed Augmentorium!
+
+### Example Tools Section
+```json
+{
+  "tools": {
+    ...
+    "augment": {
+      "transports": [ "stdio" ],
+      "command": "node",
+      "args": [
+        "c:path_to_install_folder/augmentorium/mcp/dist/mcp-server.js"
+      ],
+      "cwd": "c:path_to_install_folder/augmentorium/mcp",
+      "disabled": false,
+      "timeout": 60,
+      "autoApprove": [],
+      "alwaysAllow": []
+    }
+  }
+}
+```
 
 ---
 
@@ -170,6 +202,14 @@ Contributions are welcome! Please open issues, submit PRs, or suggest features.
 ## License
 
 This project is licensed under the MIT License.
+
+---
+
+## Branches & Contributions
+
+> **This is the `release` branch.**
+>
+> For all development, bug fixes, or new features, please submit pull requests or commits to the `master` branch. The `release` branch is for stable production use only.
 
 ---
 
