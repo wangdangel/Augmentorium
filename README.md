@@ -70,6 +70,19 @@ cd augmentorium_release
 ```
 
 ### 2. Run the Installer for Your Platform
+### Platform Script Permissions & Privileges
+
+> **IMPORTANT:**
+> - **Windows:** You must run `setup_augmentorium_windows.bat` as **Administrator**. Right-click the script and select "Run as administrator" to ensure all dependencies and services are installed correctly.
+> - **Linux & Mac:** You must run the setup script as **root** (use `sudo`). Before running, make sure the script is executable:
+>   ```bash
+>   chmod +x setup_augmentorium_linux.sh   # or setup_augmentorium_mac.sh
+>   sudo ./setup_augmentorium_linux.sh     # or sudo ./setup_augmentorium_mac.sh
+>   ```
+> - If you downloaded the script or cloned the repo on Linux/Mac, always check permissions and use `chmod +x` if needed.
+
+These scripts handle all dependency installation, environment setup, and Supervisor configuration. No manual Python environment setup is required.
+
 Choose your platform and run the provided script:
 - **Windows:**
   ```bash
@@ -83,8 +96,6 @@ Choose your platform and run the provided script:
   ```bash
   bash setup_augmentorium_mac.sh
   ```
-
-These scripts handle all dependency installation, environment setup, and Supervisor configuration. No manual Python environment setup is required.
 
 ---
 
@@ -121,31 +132,7 @@ Add the following chunk to the `tools` section of your `mcp_config.json`:
 ```
 
 > **Note:**
-> - The above paths use Windows-style (`c:path_to_install_folder`). For Linux and Mac, you must **chmod +x** the installer script before executing it, and adjust the paths to match your OS (e.g., `/home/youruser/augmentorium/mcp/dist/mcp-server.js`).
-> - Always verify the path matches where you installed Augmentorium!
-
-### Example Tools Section
-```json
-{
-  "tools": {
-    ...
-    "augment": {
-      "transports": [ "stdio" ],
-      "command": "node",
-      "args": [
-        "c:path_to_install_folder/augmentorium/mcp/dist/mcp-server.js"
-      ],
-      "cwd": "c:path_to_install_folder/augmentorium/mcp",
-      "disabled": false,
-      "timeout": 60,
-      "autoApprove": [],
-      "alwaysAllow": []
-    }
-  }
-}
-```
-
----
+> - The above paths use Windows-style (`c:path_to_install_folder`). 
 
 ## Ollama Embedding Requirements
 
