@@ -77,7 +77,7 @@ const QueryPage: React.FC = () => {
       i < arr.length - 1
         ? [...acc, part, <mark key={i}>{query}</mark>]
         : [...acc, part],
-      [] as (string | JSX.Element)[]
+      [] as (string | React.ReactElement)[]
     );
   };
 
