@@ -1,8 +1,10 @@
 from flask import Flask, request, jsonify
 import yaml
 import os
+import logging
 
 app = Flask(__name__)
+logger = logging.getLogger(__name__)
 
 def load_indexer_config():
     # Assume config.yaml is at the project root (one directory up from this script)
@@ -19,7 +21,7 @@ def trigger_reindex():
     data = request.json
     project_name = data.get('project_name')
     # TODO: Add logic to trigger reindex for the given project_name
-    print(f"Received reindex request for project: {project_name}")
+    logger.info(f"Received reindex request for project: {project_name}")
     return jsonify({"status": "reindex triggered", "project": project_name})
 
 if __name__ == "__main__":

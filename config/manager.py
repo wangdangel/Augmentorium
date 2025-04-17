@@ -89,17 +89,16 @@ class ConfigManager:
             try:
                 with open(self.config_path, 'r') as f:
                     loaded_config = yaml.safe_load(f)
-                    print(f"DEBUG: loaded_config = {loaded_config}")
                     logger.debug(f"Loaded raw config from {self.config_path}: {loaded_config}")
                     if loaded_config:
                         # Deep update the default config with loaded values
                         self._deep_update(self.config, loaded_config)
-                        logger.info(f"Loaded configuration from {self.config_path}")
+                        # logger.info(f"Loaded configuration from {self.config_path}")
                         logger.debug(f"Updated config after loading: {self.config}")
             except Exception as e:
                 logger.warning(f"Failed to load config from {self.config_path}: {e}. Using defaults.")
         else:
-            logger.info(f"Configuration file not found at {self.config_path}. Creating with defaults.")
+            # logger.info(f"Configuration file not found at {self.config_path}. Creating with defaults.")
             # Create default config file if it doesn't exist
             self._save_config()
 
@@ -108,10 +107,9 @@ class ConfigManager:
         try:
             # Ensure projects in self.config is up-to-date before saving
             self.config["projects"] = self.projects
-            print(f"DEBUG: Saving config to {self.config_path} with projects =", self.config.get("projects"))
             with open(self.config_path, 'w') as f:
                 yaml.dump(self.config, f, default_flow_style=False, sort_keys=False)
-            logger.info(f"Saved configuration to {self.config_path}")
+            # logger.info(f"Saved configuration to {self.config_path}")
         except Exception as e:
             logger.error(f"Failed to save config to {self.config_path}: {e}")
 
@@ -156,7 +154,7 @@ class ConfigManager:
             # Add or update the project entry
             self.projects[project_name] = abs_path
             self._save_config()
-            logger.info(f"Added/Updated project '{project_name}' with path '{abs_path}' to config.")
+            # logger.info(f"Added/Updated project '{project_name}' with path '{abs_path}' to config.")
             return True
         except Exception as e:
             logger.error(f"Failed to add project '{project_name}': {e}")
@@ -180,7 +178,7 @@ class ConfigManager:
             project_path = self.projects[project_name]
             del self.projects[project_name]
             self._save_config()
-            logger.info(f"Removed project '{project_name}' (path: {project_path}) from config.")
+            # logger.info(f"Removed project '{project_name}' (path: {project_path}) from config.")
             return True
         else:
             logger.warning(f"Project '{project_name}' not found in config registry.")
@@ -242,7 +240,7 @@ class ConfigManager:
             try:
                 graph_db_path = os.path.join(internal_dir, "code_graph.db")
                 initialize_graph_db(graph_db_path)
-                logger.info(f"Initialized graph database at {graph_db_path}")
+                # logger.info(f"Initialized graph database at {graph_db_path}")
             except Exception as e:
                 logger.error(f"Failed to initialize graph database for {abs_path}: {e}")
                 # Continue initialization even if graph DB fails for now
@@ -253,7 +251,7 @@ class ConfigManager:
                 try:
                     with open(ignore_file_path, 'w') as f:
                         f.write(DEFAULT_IGNORE_CONTENT)
-                    logger.info(f"Created default ignore file at {ignore_file_path}")
+                    # logger.info(f"Created default ignore file at {ignore_file_path}")
                 except Exception as e:
                      logger.error(f"Failed to create ignore file at {ignore_file_path}: {e}")
 
@@ -265,7 +263,7 @@ class ConfigManager:
                  logger.error(f"Failed to register project '{final_project_name}' in the configuration file.")
                  return False # Registration failed
 
-            logger.info(f"Successfully initialized project structure for '{final_project_name}' at '{abs_path}'.")
+            # logger.info(f"Successfully initialized project structure for '{final_project_name}' at '{abs_path}'.")
             return True
         except Exception as e:
             logger.error(f"Failed to initialize project structure at {project_path}: {e}")
@@ -335,7 +333,7 @@ class ConfigManager:
         """
         Reload the root configuration from disk.
         """
-        logger.info(f"Reloading configuration from {self.config_path}")
+        # logger.info(f"Reloading configuration from {self.config_path}")
         # Reset to defaults before loading to ensure clean state
         self.config = deepcopy(DEFAULT_CONFIG)
         self._load_config()

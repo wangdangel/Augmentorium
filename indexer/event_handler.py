@@ -51,9 +51,11 @@ class ProjectEventHandler(FileSystemEventHandler):
     def on_created(self, event: FileSystemEvent) -> None:
         """Handle file creation events"""
         from utils.ignore_utils import should_ignore
-        if should_ignore(event.src_path, self.project_path, self.ignore_spec):
+        import os
+        rel_path = os.path.relpath(event.src_path, self.project_path)
+        if rel_path.startswith('.Augmentorium') or should_ignore(event.src_path, self.project_path, self.ignore_spec) or event.is_directory:
             return
-        
+        logger.info(f"[RAW EVENT] CREATED: {event.src_path} (dir={event.is_directory})")
         self.event_queue.put(FileEvent(
             event_type="created",
             file_path=event.src_path,
@@ -63,14 +65,16 @@ class ProjectEventHandler(FileSystemEventHandler):
     
     def on_modified(self, event: FileSystemEvent) -> None:
         """Handle file modification events"""
+        # Only log user-relevant files (not .Augmentorium or its subdirs)
         from utils.ignore_utils import should_ignore
-        if should_ignore(event.src_path, self.project_path, self.ignore_spec) or event.is_directory:
+        import os
+        rel_path = os.path.relpath(event.src_path, self.project_path)
+        if rel_path.startswith('.Augmentorium') or should_ignore(event.src_path, self.project_path, self.ignore_spec) or event.is_directory:
             return
-        
+        logger.info(f"[RAW EVENT] MODIFIED: {event.src_path} (dir={event.is_directory})")
         # Only process if file content has actually changed
         if self.file_hasher and not self.file_hasher.has_changed(event.src_path):
             return
-        
         self.event_queue.put(FileEvent(
             event_type="modified",
             file_path=event.src_path,
@@ -81,13 +85,14 @@ class ProjectEventHandler(FileSystemEventHandler):
     def on_deleted(self, event: FileSystemEvent) -> None:
         """Handle file deletion events"""
         from utils.ignore_utils import should_ignore
-        if should_ignore(event.src_path, self.project_path, self.ignore_spec):
+        import os
+        rel_path = os.path.relpath(event.src_path, self.project_path)
+        if rel_path.startswith('.Augmentorium') or should_ignore(event.src_path, self.project_path, self.ignore_spec) or event.is_directory:
             return
-        
+        logger.info(f"[RAW EVENT] DELETED: {event.src_path} (dir={event.is_directory})")
         # Remove from hash cache if using hasher
         if self.file_hasher:
             self.file_hasher.remove_hash(event.src_path)
-        
         self.event_queue.put(FileEvent(
             event_type="deleted",
             file_path=event.src_path,
@@ -97,17 +102,16 @@ class ProjectEventHandler(FileSystemEventHandler):
     
     def on_moved(self, event: FileSystemEvent) -> None:
         """Handle file move events"""
-        # Check source path
         from utils.ignore_utils import should_ignore
-        src_excluded = should_ignore(event.src_path, self.project_path, self.ignore_spec)
-        dest_excluded = should_ignore(event.dest_path, self.project_path, self.ignore_spec)
-        
-        # Handle different cases
+        import os
+        rel_src = os.path.relpath(event.src_path, self.project_path)
+        rel_dest = os.path.relpath(getattr(event, 'dest_path', ''), self.project_path)
+        src_excluded = rel_src.startswith('.Augmentorium') or should_ignore(event.src_path, self.project_path, self.ignore_spec)
+        dest_excluded = rel_dest.startswith('.Augmentorium') or should_ignore(getattr(event, 'dest_path', ''), self.project_path, self.ignore_spec)
         if src_excluded and dest_excluded:
-            # Both excluded, ignore
             return
-        elif src_excluded and not dest_excluded:
-            # Moved from excluded to included, treat as created
+        logger.info(f"[RAW EVENT] MOVED: {event.src_path} -> {getattr(event, 'dest_path', None)} (dir={event.is_directory})")
+        if src_excluded and not dest_excluded:
             self.event_queue.put(FileEvent(
                 event_type="created",
                 file_path=event.dest_path,
@@ -115,7 +119,6 @@ class ProjectEventHandler(FileSystemEventHandler):
                 project_path=self.project_path
             ))
         elif not src_excluded and dest_excluded:
-            # Moved from included to excluded, treat as deleted
             self.event_queue.put(FileEvent(
                 event_type="deleted",
                 file_path=event.src_path,
@@ -136,8 +139,8 @@ class ProjectEventHandler(FileSystemEventHandler):
                 is_directory=event.is_directory,
                 project_path=self.project_path
             ))
-            
-            # Update hash cache if using hasher
-            if self.file_hasher:
-                self.file_hasher.remove_hash(event.src_path)
+        # Update hash cache if using hasher
+        if self.file_hasher:
+            self.file_hasher.remove_hash(event.src_path)
+            if hasattr(event, 'dest_path'):
                 self.file_hasher.update_hash(event.dest_path)

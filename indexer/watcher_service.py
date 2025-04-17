@@ -74,6 +74,8 @@ class FileWatcherService:
         try:
             project_path = normalize_path(project_path)
             
+            logger.info(f"[WATCHDOG DEBUG] Attempting to add project: {project_path}")
+            
             # Check if project already exists
             if project_path in self.projects:
                 logger.warning(f"Project already being watched: {project_path}")
@@ -152,6 +154,9 @@ class FileWatcherService:
             try:
                 # Get event from queue with timeout
                 event = self.event_queue.get(timeout=1.0)
+                
+                # Log event
+                logger.info(f"[WATCHDOG EVENT] {event.event_type.upper()} - {event.file_path} (dir={event.is_directory})")
                 
                 # Process event
                 if self.event_callback:
