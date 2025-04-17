@@ -7,11 +7,12 @@ chunks_bp = Blueprint('chunks', __name__, url_prefix='/api/chunks')
 def search_chunks():
     """
     Semantic search for code chunks/passages.
-    Request: { "project": str (required), "query": str, "n_results": int (optional, default 5) }
+    Request: { "project": str (required), "query": str, "n_results": int (optional, default 5), "file_name": str (optional) }
     Response: { "chunks": [ { "text": str, "file": str, "score": float, ... } ] }
     """
     data = request.json or {}
     project_name = data.get("project")
+    file_name = data.get("file_name")
     if not project_name:
         return jsonify({"error": "Project name must be specified."}), 400
     query = data.get("query")
@@ -34,10 +35,15 @@ def search_chunks():
     if not query_processor:
         return jsonify({"error": "Server internal error: QueryProcessor not initialized"}), 500
 
-    # If your query_processor is project-specific, replace this with a lookup by project_name
+    filters = None
+    if file_name:
+        # Add a filter for file_path or basename match
+        filters = {"file_name": file_name}
+
     results = query_processor.query(
         query_text=query,
-        n_results=n_results
+        n_results=n_results,
+        filters=filters
     )
 
     # Assume results is a list of objects with .to_dict() or similar
