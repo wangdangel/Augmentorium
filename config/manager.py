@@ -179,9 +179,6 @@ class ConfigManager:
         if project_name in self.projects:
             project_path = self.projects[project_name]
             del self.projects[project_name]
-            # Also remove from active_project if it was active
-            if self.config.get("active_project") == project_name:
-                self.config["active_project"] = None
             self._save_config()
             logger.info(f"Removed project '{project_name}' (path: {project_path}) from config.")
             return True
@@ -212,38 +209,6 @@ class ConfigManager:
         """
         projects = self.config.get("projects", {})
         return projects if isinstance(projects, dict) else {}
-
-    def get_active_project_name(self) -> Optional[str]:
-        """
-        Get the name of the active project from the config.
-
-        Returns:
-            str or None
-        """
-        return self.config.get("active_project")
-
-    def set_active_project_name(self, project_name: str) -> bool:
-        """
-        Set the active project name in the root config file.
-
-        Args:
-            project_name: Name of the project to set active. Must exist in registry.
-
-        Returns:
-            bool: True if successful, False otherwise.
-        """
-        if not isinstance(self.projects, dict):
-             logger.error("Internal state error: self.projects is not a dictionary. Cannot set active project.")
-             return False
-
-        if project_name in self.projects:
-            self.config["active_project"] = project_name
-            self._save_config()
-            logger.info(f"Set active project to '{project_name}'.")
-            return True
-        else:
-            logger.error(f"Cannot set active project: '{project_name}' not found in registry.")
-            return False
 
     def initialize_project(self, project_path: str, project_name: Optional[str] = None) -> bool:
         """

@@ -3,7 +3,7 @@ general:
   log_level: INFO
 projects:
   ice: K:\Documents\icecrawl
-  alphaone: K:\Documents\alphaone
+  test_add: K:\Documents\augmentorium\test_add
 indexer:
   polling_interval: 1.0
   max_workers: 4

@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Any, Tuple
 
 from config.manager import ConfigManager
 from server.api_server import APIServer
-from server.query import QueryProcessor, RelationshipEnricher, ContextBuilder
+from server.query import QueryProcessor, RelationshipEnricher, ContextBuilder, QueryExpander
 from utils.db_utils import VectorDB
 from indexer.embedder import OllamaEmbedder
 from utils.project_db_mapping import build_project_db_mapping, get_db_paths_for_project
@@ -19,7 +19,6 @@ logger = logging.getLogger(__name__)
 def start_api_server(
     config: ConfigManager,
     port: int = 6655,
-    active_project: Optional[str] = None
 ) -> Tuple[APIServer, threading.Thread]:
     """
     Start the Augmentorium API server (without MCP)
@@ -27,7 +26,6 @@ def start_api_server(
     Args:
         config: Configuration manager
         port: Port for the API server
-        active_project: Path to the active project
     
     Returns:
         Tuple[APIServer, threading.Thread]: API server and its thread
@@ -38,46 +36,22 @@ def start_api_server(
         # Get server configuration
         server_config = config.config.get("server", {})
         host = server_config.get("host", "localhost")
-        
-        # Build project database mapping and select active project dbs
+
+        # Build mapping for all projects
         project_db_mapping = build_project_db_mapping(config)
-        db_paths = None
-        if active_project:
-            db_paths = get_db_paths_for_project(project_db_mapping, active_project)
-        elif 'active_project_name' in locals():
-            db_paths = get_db_paths_for_project(project_db_mapping, active_project_name)
-
-        # DEBUG: Log the resolved ChromaDB path
-        if db_paths and 'chroma_db' in db_paths:
-            print(f"[DEBUG] Resolved ChromaDB path: {db_paths['chroma_db']}")
-        else:
-            print("[DEBUG] Could not resolve ChromaDB path.")
-
-        # Determine which project to use as active
-        if active_project:
-            active_project_id = active_project
-        else:
-            active_project_name = config.get_active_project_name()
-            active_project_id = active_project_name
-        if not db_paths:
-            logger.warning("No valid project database paths found for the active project. Starting API server in 'no active project' mode.")
-            db_paths = None
-
-        # --- BEGIN PATCH: Use project mapping for DB paths, decoupled from active project ---
-        project_db_mapping = build_project_db_mapping(config)
-        active_project_name = config.config.get("active_project")
         project_paths = config.config.get("projects", {})
-        active_project_path = project_paths.get(active_project_name)
-        if not active_project_path:
-            raise RuntimeError("No active project path found in config.")
-        db_paths = get_db_paths_for_project(project_db_mapping, active_project_path)
-        if not db_paths:
-            raise RuntimeError(f"No DB paths found for project: {active_project_path}")
-        vector_db = VectorDB(db_paths["chroma_db"])
-        graph_db_path = db_paths["code_graph_db"]
-        print(f"[DEBUG] Resolved ChromaDB path: {db_paths['chroma_db']}")
-        print(f"[DEBUG] Resolved Code Graph DB path: {db_paths['code_graph_db']}")
-        # --- END PATCH ---
+
+        # Prepare DBs for all projects
+        dbs = {}
+        for project_name, project_path in project_paths.items():
+            db_paths = get_db_paths_for_project(project_db_mapping, project_path)
+            if db_paths:
+                dbs[project_name] = {
+                    "vector_db": VectorDB(db_paths["chroma_db"]),
+                    "graph_db_path": db_paths["code_graph_db"]
+                }
+            else:
+                logger.warning(f"No DB paths found for project: {project_path}")
 
         # Initialize embedder (not project-dependent, always available)
         ollama_config = config.config.get("ollama", {})
@@ -86,20 +60,24 @@ def start_api_server(
             model=ollama_config.get("embedding_model")
         )
 
-        # Initialize query processor and enrichers
-        from server.query import QueryExpander
-        query_expander = QueryExpander(ollama_embedder=embedder)
-        query_processor = QueryProcessor(
-            vector_db=vector_db,
-            expander=query_expander,
-            cache_size=server_config.get("cache_size", 100),
-            graph_db_path=graph_db_path
-        )
-        relationship_enricher = RelationshipEnricher(vector_db)
-        context_builder = ContextBuilder(
-            max_context_size=config.config.get("chunking", {}).get("max_chunk_size", 1024)
-        )
-        
+        # Initialize query processor and enrichers for each project
+        query_expanders = {}
+        query_processors = {}
+        relationship_enrichers = {}
+        context_builders = {}
+        for project_name, db in dbs.items():
+            query_expanders[project_name] = QueryExpander(ollama_embedder=embedder)
+            query_processors[project_name] = QueryProcessor(
+                vector_db=db["vector_db"],
+                expander=query_expanders[project_name],
+                cache_size=server_config.get("cache_size", 100),
+                graph_db_path=db["graph_db_path"]
+            )
+            relationship_enrichers[project_name] = RelationshipEnricher(db["vector_db"])
+            context_builders[project_name] = ContextBuilder(
+                max_context_size=config.config.get("chunking", {}).get("max_chunk_size", 1024)
+            )
+
         # Create shared indexer status object
         indexer_status = {}
 
@@ -108,21 +86,18 @@ def start_api_server(
             config_manager=config,
             indexer_status=indexer_status,
             host=host,
-            port=port
+            port=port,
+            query_processors=query_processors,
+            relationship_enrichers=relationship_enrichers,
+            context_builders=context_builders
         )
-        
-        # Attach query components directly to app
-        api_server.app.query_processor = query_processor
-        api_server.app.relationship_enricher = relationship_enricher
-        api_server.app.context_builder = context_builder
-        
+
         # Start API server in a thread
         api_thread = threading.Thread(target=api_server.run)
         api_thread.daemon = True
         api_thread.start()
-        
+
         logger.info(f"Augmentorium API server started on {host}:{port}")
-        
         return api_server, api_thread
     except Exception as e:
         logger.error(f"Failed to start API server: {e}")
@@ -139,7 +114,6 @@ def main():
     # Parse arguments
     parser = argparse.ArgumentParser(description="Augmentorium Server")
     parser.add_argument("--config", help="Path to config file")
-    parser.add_argument("--project", help="Path to the active project")
     parser.add_argument("--port", type=int, default=6655, help="Port for the API server")
     parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default="INFO",
                         help="Set the logging level")
@@ -153,7 +127,7 @@ def main():
     config = ConfigManager(args.config)
     
     # Start API server only (no MCP)
-    api_server, api_thread = start_api_server(config, args.port, args.project)
+    api_server, api_thread = start_api_server(config, args.port)
     
     # Keep running
     try:

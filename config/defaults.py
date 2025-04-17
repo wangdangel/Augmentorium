@@ -25,7 +25,7 @@ DEFAULT_CONFIG = {
     },
     # Project registry - now part of the main config
     "projects": {},
-    "active_project": None,
+    # Removed legacy 'active_project' entry; all projects are always available
     "indexer": {
         "polling_interval": 1.0,  # seconds
         "max_workers": 4,

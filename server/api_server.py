@@ -30,24 +30,6 @@ logger = logging.getLogger(__name__)
 
 from functools import wraps
 
-def require_active_project(func):
-    """
-    Decorator for API endpoints that require an active project.
-    Returns HTTP 400 with a clear error if no active project is set.
-    """
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
-        active_project = self.config_manager.get_active_project_name()
-        if not active_project:
-            return (
-                jsonify({
-                    "error": "No active project set. Please set or create a project using the /api/projects endpoint."
-                }),
-                400
-            )
-        return func(self, *args, **kwargs)
-    return wrapper
-
 class APIServer:
     """API server for Augmentorium management"""
     
@@ -56,7 +38,10 @@ class APIServer:
         config_manager: ConfigManager,
         indexer_status,
         host: str = "localhost",
-        port: int = 6655
+        port: int = 6655,
+        query_processors=None,
+        relationship_enrichers=None,
+        context_builders=None
     ):
         """
         Initialize API server
@@ -65,18 +50,19 @@ class APIServer:
             config_manager: Configuration manager
             host: Host to bind to
             port: Port to bind to
+            query_processors: Dict of project_name -> QueryProcessor
+            relationship_enrichers: Dict of project_name -> RelationshipEnricher
+            context_builders: Dict of project_name -> ContextBuilder
         """
         import threading
         self.config_manager = config_manager
         self.host = host
         self.port = port
-
         self.indexer_status = indexer_status
-
-        # Lock for project component reloads and query safety
         self._project_lock = threading.Lock()
-        
-        # Initialize Flask app
+        self.query_processors = query_processors or {}
+        self.relationship_enrichers = relationship_enrichers or {}
+        self.context_builders = context_builders or {}
         self.app = Flask("augmentorium")
         CORS(self.app, origins=["http://localhost:5173"])  # Allow frontend dev server
         self.app.config_manager = config_manager
@@ -87,6 +73,7 @@ class APIServer:
         # Ensure both blueprints share the same status object
         from server.api.api_indexer import init_indexer_blueprint
         init_indexer_blueprint(self.indexer_status)
+        from server.api.api_projects import init_projects_blueprint
         init_projects_blueprint(self.config_manager, self.indexer_status)
         self.app.register_blueprint(projects_bp)
         self.app.register_blueprint(documents_bp)
@@ -105,9 +92,9 @@ class APIServer:
         
         logger.info(f"Initialized API server on {host}:{port}")
 
-    def reload_project_components(self):
+    def reload_project_components(self, project_name):
         """
-        Reload project-specific components (QueryProcessor, VectorDB, etc.) for the new active project.
+        Reload project-specific components (QueryProcessor, VectorDB, etc.) for the given project.
         """
         import threading
         from utils.project_db_mapping import build_project_db_mapping, get_db_paths_for_project
@@ -116,14 +103,13 @@ class APIServer:
         from utils.db_utils import VectorDB
 
         with self._project_lock:
-            logger.info("Reloading project-specific components for new active project...")
+            logger.info(f"Reloading project-specific components for project {project_name}...")
             # Rebuild mapping and get new db paths
             project_db_mapping = build_project_db_mapping(self.config_manager)
-            active_project_name = self.config_manager.get_active_project_name()
-            db_paths = get_db_paths_for_project(project_db_mapping, active_project_name)
+            db_paths = get_db_paths_for_project(project_db_mapping, project_name)
             if not db_paths:
-                logger.error("No valid project database paths found for the active project during reload.")
-                raise RuntimeError("No valid project database paths found for the active project during reload.")
+                logger.error(f"No valid project database paths found for project {project_name} during reload.")
+                raise RuntimeError(f"No valid project database paths found for project {project_name} during reload.")
             vector_db = VectorDB(db_paths["chroma_db"])
             ollama_config = self.config_manager.config.get("ollama", {})
             embedder = OllamaEmbedder(
@@ -147,8 +133,8 @@ class APIServer:
             self.app.query_processor = query_processor
             self.app.relationship_enricher = relationship_enricher
             self.app.context_builder = context_builder
-            logger.info("Project-specific components reloaded and updated in app successfully.")
-    
+            logger.info(f"Project-specific components reloaded and updated in app successfully for project {project_name}.")
+
     def run(self) -> None:
         """Run the API server"""
         self.app.run(host=self.host, port=self.port)
