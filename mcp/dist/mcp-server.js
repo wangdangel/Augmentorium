@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-process.stdin.on('data', (chunk) => {
-    console.log('[RAW STDIN]', chunk.toString());
-});
+// process.stdin.on('data', (chunk) => {
+//   console.log('[RAW STDIN]', chunk.toString());
+// });
 // Augmentorium MCP Server (TypeScript/JavaScript, Stdio Transport)
 // Fully ported from Python version: all tool handlers forward to RAG backend via HTTP
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
