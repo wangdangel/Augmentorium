@@ -66,10 +66,12 @@ class ProjectWatcher:
         self.observer.schedule(self.handler, self.project_path, recursive=True)
         
         logger.info(f"Initialized watcher for project: {self.project_path}")
+        logger.info(f"[WATCHDOG DEBUG] ProjectWatcher initialized for: {self.project_path}")
     
     def start(self) -> None:
         """Start the watcher"""
         logger.info(f"Starting watcher for project: {self.project_path}")
+        logger.info(f"[WATCHDOG DEBUG] ProjectWatcher starting observer for: {self.project_path}")
         self.observer.start()
     
     def stop(self) -> None:

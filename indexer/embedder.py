@@ -133,7 +133,7 @@ class OllamaEmbedder:
         except Exception as e:
             logger.error(f"Could not verify Ollama server or model '{self.model}': {e}")
             logger.error("Ollama server unreachable. Exiting indexer to avoid indexing without embeddings.")
-            print("ERROR: Ollama server unreachable. Please start Ollama or check your configuration.")
+            logger.error("ERROR: Ollama server unreachable. Please start Ollama or check your configuration.")
             sys.exit(1)
 
     def get_embedding(self, text: str) -> Optional[List[float]]:

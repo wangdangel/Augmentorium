@@ -58,10 +58,10 @@ class TreeSitterManager:
         """
         ext = os.path.splitext(file_path)[1].lower()
         lang = EXTENSION_TO_LANGUAGE.get(ext)
-        print(f"[DEBUG] detect_language: file={file_path}, ext={repr(ext)}, lang={lang}")
-        print(f"[DEBUG] EXTENSION_TO_LANGUAGE keys: {list(EXTENSION_TO_LANGUAGE.keys())}")
+        logger.debug(f"[DEBUG] detect_language: file={file_path}, ext={repr(ext)}, lang={lang}")
+        logger.debug(f"[DEBUG] EXTENSION_TO_LANGUAGE keys: {list(EXTENSION_TO_LANGUAGE.keys())}")
         if lang is None:
-            print(f"[DEBUG] Extension {repr(ext)} not found in EXTENSION_TO_LANGUAGE for file: {file_path}")
+            logger.warning(f"[DEBUG] Extension {repr(ext)} not found in EXTENSION_TO_LANGUAGE for file: {file_path}")
         return lang
 
     def __init__(self):

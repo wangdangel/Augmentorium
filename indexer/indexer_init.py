@@ -55,7 +55,7 @@ class Indexer:
             if hasattr(self, "logger"):
                 self.logger.error(f"[CLOSE] Exception during resource cleanup: {e}")
             else:
-                print(f"[CLOSE] Exception during resource cleanup: {e}")
+                logger.error(f"[CLOSE] Exception during resource cleanup: {e}")
         # TODO: Close graph DB connections if persistent (currently opened per operation)
         # TODO: Stop any file watchers if running
         # Placeholder for future cleanup logic
@@ -144,9 +144,9 @@ class Indexer:
                 c.execute("CREATE INDEX IF NOT EXISTS idx_edges_relation ON edges(relation_type)")
                 conn.commit()
                 conn.close()
-                print(f"Graph database initialized at {graph_db_path}")
+                self.logger.info(f"Graph database initialized at {graph_db_path}")
         except Exception as e:
-            print(f"Failed to initialize graph database: {e}")
+            self.logger.error(f"Failed to initialize graph database: {e}")
 
         # Set up Ollama embedder - Read directly from the single config
         ollama_config = self.config.get("ollama", {})
@@ -512,7 +512,7 @@ class IndexerService:
             # --- End Combine ignore patterns ---
 
             # Add to file watcher using combined patterns
-            self.file_watcher.add_project(project_path, combined_patterns)
+            self.file_watcher.add_project(project_path)
 
             logger.info(f"Added project to index: {project_path} with {len(combined_patterns)} ignore patterns.")
             logger.info(f"Finished add_project for: {project_path}")
@@ -800,12 +800,12 @@ def trigger_reindex():
     def do_reindex():
         try:
             processed = target_indexer.full_index()
-            print(f"[API] Reindex completed for project: {project_name} ({processed} files processed)")
+            logger.info(f"[API] Reindex completed for project: {project_name} ({processed} files processed)")
         except Exception as e:
-            print(f"[API] Reindex failed for project: {project_name}: {e}")
+            logger.error(f"[API] Reindex failed for project: {project_name}: {e}")
 
     threading.Thread(target=do_reindex, daemon=True).start()
-    print(f"[API] Reindex triggered for project: {project_name}")
+    logger.info(f"[API] Reindex triggered for project: {project_name}")
     return jsonify({"status": "reindex triggered", "project": project_name})
 
 # --- Entry point for starting indexer and API server ---
