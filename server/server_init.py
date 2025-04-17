@@ -41,17 +41,16 @@ def start_api_server(
         project_db_mapping = build_project_db_mapping(config)
         project_paths = config.config.get("projects", {})
 
-        # Prepare DBs for all projects
-        dbs = {}
-        for project_name, project_path in project_paths.items():
-            db_paths = get_db_paths_for_project(project_db_mapping, project_path)
-            if db_paths:
-                dbs[project_name] = {
-                    "vector_db": VectorDB(db_paths["chroma_db"]),
-                    "graph_db_path": db_paths["code_graph_db"]
-                }
-            else:
-                logger.warning(f"No DB paths found for project: {project_path}")
+        # Use the FIRST project as the default (for now)
+        # Or, optionally, you could use a specific project or make this configurable
+        first_project = next(iter(project_paths.items()), None)
+        if not first_project:
+            raise RuntimeError("No projects found in config.")
+        project_name, project_path = first_project
+        db_paths = get_db_paths_for_project(project_db_mapping, project_path)
+        if not db_paths:
+            logger.warning(f"No DB paths found for project: {project_path}")
+            raise RuntimeError(f"No DB paths found for project: {project_path}")
 
         # Initialize embedder (not project-dependent, always available)
         ollama_config = config.config.get("ollama", {})
@@ -60,23 +59,18 @@ def start_api_server(
             model=ollama_config.get("embedding_model")
         )
 
-        # Initialize query processor and enrichers for each project
-        query_expanders = {}
-        query_processors = {}
-        relationship_enrichers = {}
-        context_builders = {}
-        for project_name, db in dbs.items():
-            query_expanders[project_name] = QueryExpander(ollama_embedder=embedder)
-            query_processors[project_name] = QueryProcessor(
-                vector_db=db["vector_db"],
-                expander=query_expanders[project_name],
-                cache_size=server_config.get("cache_size", 100),
-                graph_db_path=db["graph_db_path"]
-            )
-            relationship_enrichers[project_name] = RelationshipEnricher(db["vector_db"])
-            context_builders[project_name] = ContextBuilder(
-                max_context_size=config.config.get("chunking", {}).get("max_chunk_size", 1024)
-            )
+        # Initialize single query processor and enrichers
+        query_expander = QueryExpander(ollama_embedder=embedder)
+        query_processor = QueryProcessor(
+            vector_db=VectorDB(db_paths["chroma_db"]),
+            expander=query_expander,
+            cache_size=server_config.get("cache_size", 100),
+            graph_db_path=db_paths["code_graph_db"]
+        )
+        relationship_enricher = RelationshipEnricher(VectorDB(db_paths["chroma_db"]))
+        context_builder = ContextBuilder(
+            max_context_size=config.config.get("chunking", {}).get("max_chunk_size", 1024)
+        )
 
         # Create shared indexer status object
         indexer_status = {}
@@ -87,10 +81,15 @@ def start_api_server(
             indexer_status=indexer_status,
             host=host,
             port=port,
-            query_processors=query_processors,
-            relationship_enrichers=relationship_enrichers,
-            context_builders=context_builders
+            query_processors=None,  # Not used anymore
+            relationship_enrichers=None,
+            context_builders=None
         )
+
+        # Attach singletons to app (for use in endpoints)
+        api_server.app.query_processor = query_processor
+        api_server.app.relationship_enricher = relationship_enricher
+        api_server.app.context_builder = context_builder
 
         # Start API server in a thread
         api_thread = threading.Thread(target=api_server.run)
