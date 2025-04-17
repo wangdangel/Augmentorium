@@ -215,12 +215,26 @@ class QueryProcessor:
                 logger.error("Failed to get embedding for query")
                 return []
             
-            # Query vector database
+            # If filters contains file_name, convert to file_path filter or basename filter
+            where = filters.copy() if filters else None
+            if filters and "file_name" in filters:
+                file_name = filters["file_name"]
+                # Support both full path and basename match
+                def file_path_filter(metadata):
+                    fp = metadata.get("file_path", "")
+                    import os
+                    return fp == file_name or os.path.basename(fp) == file_name
+                # Compose a new where filter for vector_db.query
+                # Since vector DB may not support python callables, filter after retrieval
+                where = None
+            else:
+                file_path_filter = None
+
             results = self.vector_db.query(
                 collection_name=self.collection_name,
                 query_embeddings=[embedding],
                 n_results=n_results,
-                where=filters
+                where=where
             )
             
             # Process results
@@ -238,6 +252,12 @@ class QueryProcessor:
                 text = results["documents"][0][i]
                 metadata = results["metadatas"][0][i]
                 file_path = metadata.get("file_path", "")
+                
+                # If file_name filter is active, filter here
+                if filters and "file_name" in filters:
+                    import os
+                    if not (file_path == filters["file_name"] or os.path.basename(file_path) == filters["file_name"]):
+                        continue
                 
                 # Calculate score (1.0 - distance)
                 score = 1.0
