@@ -25,7 +25,8 @@ def get_dir_size(path):
 
 @projects_bp.route('/', methods=['GET'])
 def get_projects():
-    """Get list of projects with metadata"""
+    """Get list of projects with metadata, or metadata for a single project if ?project=... is provided"""
+    project_name = request.args.get('project')
     projects_dict = config_manager.get_all_projects()
     projects_list = []
 
@@ -37,6 +38,27 @@ def get_projects():
     except Exception:
         pass
 
+    if project_name:
+        # Return metadata for a single project (mimic get_project logic)
+        if not projects_dict or project_name not in projects_dict:
+            return jsonify({"error": "Project not found"}), 404
+        path = projects_dict[project_name]
+        size = 0
+        try:
+            size = get_dir_size(path)
+        except Exception:
+            pass
+        status_info = indexer_status_map.get(path, {})
+        project_info = {
+            "name": project_name,
+            "path": path,
+            "status": status_info.get("status", "idle"),
+            "size": status_info.get("size", size),
+            "lastIndexed": status_info.get("lastIndexed"),
+            "error": status_info.get("error")
+        }
+        return jsonify(project_info)
+
     if not projects_dict:
         projects_dict = {}
     for name, path in projects_dict.items():
@@ -45,9 +67,7 @@ def get_projects():
             size = get_dir_size(path)
         except Exception:
             pass
-
         status_info = indexer_status_map.get(path, {})
-
         project_info = {
             "name": name,
             "path": path,
@@ -331,6 +351,60 @@ def reinitialize_project(project_name):
         "message": f"Project '{project_name}' reinitialized successfully at '{project_path}'{reindex_msg}"
     })
 
+@projects_bp.route('/<project_name>', methods=['GET'])
+def get_project(project_name):
+    """Get metadata for a single project by name"""
+    projects_dict = config_manager.get_all_projects()
+    if not projects_dict or project_name not in projects_dict:
+        return jsonify({"error": "Project not found"}), 404
+    path = projects_dict[project_name]
+    # Optionally, gather more metadata as in get_projects
+    size = 0
+    try:
+        size = get_dir_size(path)
+    except Exception:
+        pass
+    # Lookup status info if available
+    status_info = {}
+    try:
+        for p in (indexer_status_ref.get("projects", []) if indexer_status_ref else []):
+            if p.get("path") == path:
+                status_info = p
+                break
+    except Exception:
+        pass
+    project_info = {
+        "name": project_name,
+        "path": path,
+        "status": status_info.get("status", "idle"),
+        "size": status_info.get("size", size),
+        "lastIndexed": status_info.get("lastIndexed"),
+        "error": status_info.get("error")
+    }
+    return jsonify(project_info)
+
+@projects_bp.route('/<project_name>/info', methods=['GET'])
+def get_project_by_name(project_name):
+    """Get detailed project info by name"""
+    # Example: fetch project by name from your storage/database
+    project = get_project_from_db(project_name)  # Replace with your actual lookup
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+    # You can add more fields as needed
+    return jsonify({
+        'name': project['name'],
+        'path': project['path'],
+        'size': project.get('size'),
+        'status': project.get('status'),
+        'lastIndexed': project.get('lastIndexed'),
+        # Add any extra info you want here
+        'owner': project.get('owner'),
+        'description': project.get('description'),
+        'created': project.get('created'),
+        'updated': project.get('updated'),
+        # ...
+    })
+
 @projects_bp.route('/debug', methods=['GET'])
 def debug_projects():
     """Debug endpoint to show current in-memory projects registry."""
@@ -340,3 +414,18 @@ def debug_projects():
         "projects": getattr(config_manager, 'projects', None),
         "config": getattr(config_manager, 'config', None)
     })
+
+def get_project_from_db(project_name):
+    # Replace with your actual project lookup logic
+    # For demonstration purposes, assume a project is found
+    return {
+        'name': project_name,
+        'path': '/path/to/project',
+        'size': 1024,
+        'status': 'indexed',
+        'lastIndexed': '2022-01-01',
+        'owner': 'John Doe',
+        'description': 'This is a sample project',
+        'created': '2022-01-01',
+        'updated': '2022-01-01'
+    }

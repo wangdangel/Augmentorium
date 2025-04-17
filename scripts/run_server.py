@@ -45,7 +45,7 @@ def main():
         logger.info(f"Using Ollama API at: {args.ollama_url}")
         config._save_config()
     
-    api_server, api_thread = start_api_server(config, args.port, args.project)
+    api_server, api_thread = start_api_server(config, args.port)
     
     try:
         logger.info("Server started. Press Ctrl+C to stop.")

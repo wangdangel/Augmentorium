@@ -23,7 +23,6 @@ def main():
     """Main entry point for development server"""
     parser = argparse.ArgumentParser(description="Augmentorium MCP Server (Development)")
     parser.add_argument("--config", help="Path to config file")
-    parser.add_argument("--project", help="Path to the active project")
     parser.add_argument("--port", type=int, default=8080, help="Port for the API server")
     parser.add_argument("--host", default="localhost", help="Host to bind to")
     parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default="DEBUG",
@@ -43,8 +42,7 @@ def main():
     
     # Create MCP service
     mcp_service = MCPService(
-        config_manager=config,
-        active_project_path=args.project
+        config_manager=config
     )
     
     # Start MCP service
